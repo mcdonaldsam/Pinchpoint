@@ -1,0 +1,12 @@
+{
+  "name": "pinchpoint",
+  "version": "0.1.0",
+  "description": "Connect your Claude credentials to PinchPoint",
+  "type": "module",
+  "bin": {
+    "pinchpoint": "./bin/pinchpoint.mjs"
+  },
+  "files": ["bin/"],
+  "keywords": ["claude", "anthropic", "scheduler"],
+  "license": "MIT"
+}

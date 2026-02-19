@@ -1,0 +1,33 @@
+name = "pinchpoint"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Maintenance cron only — ping scheduling is handled by DO alarms
+[triggers]
+crons = ["0 */6 * * *"]
+
+# Durable Object: one per user, handles schedule + alarms
+[[durable_objects.bindings]]
+name = "USER_SCHEDULE"
+class_name = "UserScheduleDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["UserScheduleDO"]
+
+# KV: ephemeral connect sessions (5 min TTL)
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Public vars
+[vars]
+CLERK_PUBLISHABLE_KEY = ""
+FRONTEND_URL = "https://pinchpoint.dev"
+
+# Secrets (set via `wrangler secret put`):
+# CLERK_SECRET_KEY   — Clerk backend key for JWT verification
+# RESEND_API_KEY     — Resend email API key
+# PING_SERVICE_URL   — Cloud Run service URL
+# PING_SECRET        — HMAC shared secret for request signing
+# ENCRYPTION_KEY     — AES-256 key for token encryption (hex, 32 bytes)

@@ -265,6 +265,21 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+
+  // Sync from server when props change (e.g., after poll refresh or auto-pause)
+  useEffect(() => {
+    if (!initialSchedule) return
+    const s = {}
+    for (const day of DAYS) {
+      s[day] = initialSchedule[day] || null
+    }
+    setSchedule(s)
+  }, [initialSchedule])
+
+  useEffect(() => {
+    if (initialTz) setTimezone(initialTz)
+  }, [initialTz])
 
   function toggleDay(day) {
     setSchedule(prev => ({
@@ -281,9 +296,12 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       await onSave(schedule, timezone)
       setSaved(true)
+    } catch (e) {
+      setSaveError(e.message || 'Failed to save schedule')
     } finally {
       setSaving(false)
     }
@@ -332,19 +350,21 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
               {DAY_LABELS[day]}
             </span>
 
-            {schedule[day] ? (
-              <select
-                value={schedule[day]}
-                onChange={e => setTime(day, e.target.value)}
-                className="text-sm border border-stone-200 rounded-lg px-3 py-1.5 bg-white text-stone-700"
-              >
-                {TIME_OPTIONS.map(t => (
-                  <option key={t} value={t}>{formatTime12(t)}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-sm text-stone-300">Off</span>
-            )}
+            <div className="w-32">
+              {schedule[day] ? (
+                <select
+                  value={schedule[day]}
+                  onChange={e => setTime(day, e.target.value)}
+                  className="text-sm border border-stone-200 rounded-lg px-3 py-1.5 bg-white text-stone-700"
+                >
+                  {TIME_OPTIONS.map(t => (
+                    <option key={t} value={t}>{formatTime12(t)}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-sm text-stone-300">Off</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -359,6 +379,9 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
         </button>
         {saved && (
           <span className="text-sm text-emerald-600">Saved</span>
+        )}
+        {saveError && (
+          <span className="text-sm text-red-600">{saveError}</span>
         )}
       </div>
     </div>

@@ -23,12 +23,13 @@ id = "5d9bb168e2344a39bf39753f1ef8a2e7"
 
 # Public vars
 [vars]
-CLERK_PUBLISHABLE_KEY = ""
+CLERK_FRONTEND_API = "clerk.pinchpoint.dev"  # Clerk domain — used for JWKS + JWT issuer check
 FRONTEND_URL = "https://pinchpoint.dev"
 
 # Secrets (set via `wrangler secret put`):
-# CLERK_SECRET_KEY   — Clerk backend key for JWT verification
-# RESEND_API_KEY     — Resend email API key
-# PING_SERVICE_URL   — Cloud Run service URL
-# PING_SECRET        — HMAC shared secret for request signing
-# ENCRYPTION_KEY     — AES-256 key for token encryption (hex, 32 bytes)
+# CLERK_SECRET_KEY      — Clerk backend secret key (for JWT verification + Backend API)
+# RESEND_API_KEY        — Resend email API key
+# PING_SERVICE_URL      — Fly.io ping service URL
+# PING_SECRET           — HMAC shared secret for request signing
+# ENCRYPTION_KEY        — AES-256 master key for at-rest token encryption (hex, 32 bytes)
+# PING_ENCRYPTION_KEY   — AES-256 key for transit encryption DO→ping (hex, 32 bytes)

@@ -32,7 +32,8 @@ export async function verifyClerkSession(request, env) {
   if (!authHeader?.startsWith('Bearer ')) return null
 
   const token = authHeader.slice(7)
-  const clerkDomain = env.CLERK_FRONTEND_API || 'sweet-giraffe-55.clerk.accounts.dev'
+  const clerkDomain = env.CLERK_FRONTEND_API
+  if (!clerkDomain) return null
 
   try {
     // Decode JWT header to get kid
@@ -69,7 +70,25 @@ export async function verifyClerkSession(request, env) {
 
     // Decode and validate payload
     const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')))
-    if (payload.exp && payload.exp < Date.now() / 1000) return null
+    const nowSeconds = Date.now() / 1000
+
+    // Expiration check (required)
+    if (!payload.exp || payload.exp < nowSeconds) return null
+
+    // Not-before check — reject tokens used before their valid-from time
+    if (payload.nbf && payload.nbf > nowSeconds) return null
+
+    // Issuer check (required)
+    if (!payload.iss || payload.iss !== `https://${clerkDomain}`) return null
+
+    // Authorized party check — Clerk puts the publishable key in azp (not the domain)
+    if (payload.azp && env.CLERK_PUBLISHABLE_KEY && payload.azp !== env.CLERK_PUBLISHABLE_KEY) return null
+
+    // Audience check — reject tokens intended for a different application
+    if (payload.aud) {
+      const validAud = Array.isArray(payload.aud) ? payload.aud : [payload.aud]
+      if (!validAud.some(a => a === `https://${clerkDomain}` || a === clerkDomain)) return null
+    }
 
     return payload.sub // Clerk user ID
   } catch {

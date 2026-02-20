@@ -4,11 +4,23 @@
 
 import { UserScheduleDO } from './user-schedule-do.js'
 import { verifyClerkSession } from './auth.js'
-import { encryptToken } from './crypto.js'
+import { encryptToken, hashToken, deriveUserKey } from './crypto.js'
 import { validateSchedule, validateTimezone } from './validate.js'
 
 // Re-export DO class for wrangler binding
 export { UserScheduleDO }
+
+// ─── Rate limiting helper ──────────────────────────────────────────
+// NOTE: KV-based rate limiting is best-effort (non-atomic read-then-write,
+// eventually consistent). Concurrent requests can bypass the limit.
+// Security-critical flows (connect approve) use per-session attempt counters instead.
+
+async function rateLimit(env, key, maxRequests, windowSeconds) {
+  const count = parseInt(await env.KV.get(key) || '0', 10)
+  if (count >= maxRequests) return false
+  await env.KV.put(key, String(count + 1), { expirationTtl: windowSeconds })
+  return true
+}
 
 function corsHeaders(env) {
   return {
@@ -54,11 +66,15 @@ export default {
 
     // Connect flow: CLI starts a session
     if (route === 'POST /api/connect/start') {
-      return connectStart(env, headers)
+      return connectStart(request, env, headers)
     }
 
     // Connect flow: CLI polls for approval
     if (route === 'GET /api/connect/poll') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+      if (!await rateLimit(env, `ratelimit:poll:${ip}`, 60, 60)) {
+        return json({ error: 'Too many requests' }, 429, headers)
+      }
       const sessionId = url.searchParams.get('session')
       if (!sessionId) return json({ error: 'Missing session param' }, 400, headers)
       return connectPoll(env, sessionId, headers)
@@ -66,6 +82,10 @@ export default {
 
     // Connect flow: CLI sends token after approval
     if (route === 'POST /api/connect/complete') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+      if (!await rateLimit(env, `ratelimit:complete:${ip}`, 10, 60)) {
+        return json({ error: 'Too many requests' }, 429, headers)
+      }
       return connectComplete(request, env, headers)
     }
 
@@ -108,8 +128,12 @@ export default {
       case 'POST /api/connect/approve': {
         const body = await parseJSON(request)
         if (!body?.sessionId) return json({ error: 'Missing sessionId' }, 400, headers)
-        return connectApprove(env, userId, body.sessionId, headers)
+        if (!body?.code) return json({ error: 'Missing verification code' }, 400, headers)
+        return connectApprove(env, userId, body.sessionId, body.code, headers)
       }
+
+      case 'POST /api/disconnect':
+        return proxyToDO(stub, '/disconnect-token', 'POST', null, headers)
 
       case 'DELETE /api/account':
         return proxyToDO(stub, '/delete-account', 'DELETE', null, headers)
@@ -139,15 +163,46 @@ async function proxyToDO(stub, path, method, body, corsHeaders) {
   return json(data, doRes.status, corsHeaders)
 }
 
+// ─── Clerk Backend API helper ─────────────────────────────────────
+
+async function fetchClerkEmail(env, userId) {
+  if (!env.CLERK_SECRET_KEY) return null
+  try {
+    const res = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+      headers: { Authorization: `Bearer ${env.CLERK_SECRET_KEY}` },
+    })
+    if (!res.ok) return null
+    const user = await res.json()
+    const primary = user.email_addresses?.find(e => e.id === user.primary_email_address_id)
+    return primary?.email_address || user.email_addresses?.[0]?.email_address || null
+  } catch {
+    return null
+  }
+}
+
 // ─── Connect flow (polling-based) ────────────────────────────────
 
 // Step 1: CLI starts a connect session
-async function connectStart(env, headers) {
+async function connectStart(request, env, headers) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+  if (!await rateLimit(env, `ratelimit:connect:${ip}`, 10, 60)) {
+    return json({ error: 'Too many requests' }, 429, headers)
+  }
+
   const sessionId = crypto.randomUUID()
+  const body = await parseJSON(request)
+  const tokenFingerprint = body?.tokenFingerprint
+  if (!tokenFingerprint || typeof tokenFingerprint !== 'string') {
+    return json({ error: 'Missing tokenFingerprint' }, 400, headers)
+  }
+  const codeHash = body?.codeHash
+  if (!codeHash || typeof codeHash !== 'string') {
+    return json({ error: 'Missing codeHash' }, 400, headers)
+  }
 
   await env.KV.put(
     `connect:${sessionId}`,
-    JSON.stringify({ status: 'pending', createdAt: Date.now() }),
+    JSON.stringify({ status: 'pending', createdAt: Date.now(), tokenFingerprint, codeHash }),
     { expirationTtl: 300 }, // 5 minutes
   )
 
@@ -166,7 +221,7 @@ async function connectPoll(env, sessionId, headers) {
 }
 
 // Step 3: Dashboard user approves the session (Clerk-authenticated)
-async function connectApprove(env, userId, sessionId, headers) {
+async function connectApprove(env, userId, sessionId, code, headers) {
   const session = await env.KV.get(`connect:${sessionId}`, 'json')
 
   if (!session) {
@@ -174,24 +229,53 @@ async function connectApprove(env, userId, sessionId, headers) {
   }
 
   if (session.status !== 'pending') {
-    return json({ error: 'Session already used' }, 409, headers)
+    return json({ error: 'Session expired or invalid' }, 404, headers)
   }
 
-  // Get user email from DO for notifications
-  const doId = env.USER_SCHEDULE.idFromName(userId)
-  const stub = env.USER_SCHEDULE.get(doId)
-  const statusRes = await stub.fetch(new Request('https://do/get-status'))
-  const status = await statusRes.json()
+  // Enforce session TTL from creation time (not approval time)
+  if (Date.now() - session.createdAt > 300_000) {
+    await env.KV.delete(`connect:${sessionId}`)
+    return json({ error: 'Session expired' }, 404, headers)
+  }
 
+  // Rate-limit verification code attempts per session (max 3 tries)
+  const attempts = (session.attempts || 0) + 1
+  if (attempts > 3) {
+    await env.KV.delete(`connect:${sessionId}`)
+    return json({ error: 'Too many attempts — session invalidated' }, 403, headers)
+  }
+
+  // Verify the verification code matches the hash from connectStart
+  const codeDigest = Array.from(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code))),
+  ).map(b => b.toString(16).padStart(2, '0')).join('')
+  if (codeDigest !== session.codeHash) {
+    // Increment attempt counter on failure
+    const remainingTtl = Math.max(1, Math.ceil((session.createdAt + 300_000 - Date.now()) / 1000))
+    await env.KV.put(
+      `connect:${sessionId}`,
+      JSON.stringify({ ...session, attempts }),
+      { expirationTtl: remainingTtl },
+    )
+    return json({ error: 'Invalid verification code' }, 403, headers)
+  }
+
+  // Fetch user email from Clerk Backend API (not DO — avoids circular dependency for new users)
+  const email = await fetchClerkEmail(env, userId)
+
+  // Use remaining TTL from creation time (don't extend session)
+  const remainingTtl = Math.max(1, Math.ceil((session.createdAt + 300_000 - Date.now()) / 1000))
   await env.KV.put(
     `connect:${sessionId}`,
     JSON.stringify({
       status: 'approved',
       userId,
-      email: status.email || null,
+      email: email || null,
+      tokenFingerprint: session.tokenFingerprint,
+      createdAt: session.createdAt,
       approvedAt: Date.now(),
     }),
-    { expirationTtl: 300 }, // Keep 5 min TTL from creation
+    { expirationTtl: remainingTtl },
   )
 
   return json({ ok: true }, 200, headers)
@@ -216,11 +300,18 @@ async function connectComplete(request, env, headers) {
     return json({ error: 'Session not approved' }, 403, headers)
   }
 
+  // Verify token fingerprint — always compute server-side, never trust caller
+  const computedFingerprint = await hashToken(setupToken)
+  if (computedFingerprint !== session.tokenFingerprint) {
+    return json({ error: 'Token mismatch' }, 403, headers)
+  }
+
   // Consume the session (one-time use)
   await env.KV.delete(`connect:${sessionId}`)
 
-  // Encrypt token and store in user's DO
-  const encryptedToken = await encryptToken(setupToken, env.ENCRYPTION_KEY)
+  // Encrypt token with per-user derived key (HKDF)
+  const userKey = await deriveUserKey(env.ENCRYPTION_KEY, session.userId)
+  const encryptedToken = await encryptToken(setupToken, userKey)
 
   const doId = env.USER_SCHEDULE.idFromName(session.userId)
   const stub = env.USER_SCHEDULE.get(doId)

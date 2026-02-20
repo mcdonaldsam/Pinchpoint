@@ -17,6 +17,7 @@ export default function Connect() {
 function ApproveSession({ sessionId }) {
   const { getToken } = useAuth()
   const [state, setState] = useState('idle') // idle | approving | approved | error
+  const [code, setCode] = useState('')
   const [error, setError] = useState(null)
 
   async function handleApprove() {
@@ -24,7 +25,7 @@ function ApproveSession({ sessionId }) {
     try {
       await apiFetch('/api/connect/approve', {
         method: 'POST',
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, code: code.trim() }),
       }, getToken)
       setState('approved')
     } catch (e) {
@@ -44,12 +45,23 @@ function ApproveSession({ sessionId }) {
               </svg>
             </div>
             <h1 className="text-xl font-bold mb-2">Approve this connection?</h1>
-            <p className="text-stone-500 text-sm mb-6">
-              A CLI on your machine is requesting to link your Claude account to PinchPoint.
+            <p className="text-stone-500 text-sm mb-4">
+              Enter the 4-digit code shown in your terminal to confirm this is your session.
             </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="0000"
+              className="w-32 mx-auto block text-center text-2xl font-mono tracking-[0.5em] border border-stone-300 rounded-lg px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              autoFocus
+            />
             <button
               onClick={handleApprove}
-              className="w-full py-3 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 transition-colors cursor-pointer"
+              disabled={code.length !== 4}
+              className="w-full py-3 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Approve
             </button>
@@ -88,9 +100,15 @@ function ApproveSession({ sessionId }) {
               </svg>
             </div>
             <h1 className="text-xl font-bold mb-2">Connection failed</h1>
-            <p className="text-red-600 text-sm mb-6">{error}</p>
-            <p className="text-stone-500 text-sm">
-              Try running <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">npx pinchpoint connect</code> again.
+            <p className="text-red-600 text-sm mb-4">{error}</p>
+            <button
+              onClick={() => { setState('idle'); setError(null); setCode('') }}
+              className="w-full py-3 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 transition-colors cursor-pointer mb-3"
+            >
+              Try again
+            </button>
+            <p className="text-stone-400 text-xs">
+              Or run <code className="bg-stone-100 px-1.5 py-0.5 rounded text-xs">npx pinchpoint connect</code> to start a new session.
             </p>
           </>
         )}

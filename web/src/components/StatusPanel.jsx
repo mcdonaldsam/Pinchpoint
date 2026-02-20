@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 const HEALTH_COLORS = {
   green: { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
   yellow: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
@@ -11,9 +13,30 @@ const HEALTH_LABELS = {
 }
 
 export default function StatusPanel({ status, onTogglePause }) {
-  const health = HEALTH_COLORS[status.tokenHealth] || HEALTH_COLORS.green
-  const windowActive = status.lastPing?.success && status.lastPing?.windowEnds &&
-    new Date(status.lastPing.windowEnds) > new Date()
+  const health = status.tokenHealth ? HEALTH_COLORS[status.tokenHealth] : null
+  const [now, setNow] = useState(() => Date.now())
+
+  const windowEndsMs = status.lastPing?.success && status.lastPing?.windowEnds
+    ? new Date(status.lastPing.windowEnds).getTime()
+    : null
+  const remaining = windowEndsMs ? windowEndsMs - now : null
+  const windowActive = remaining !== null && remaining > 0
+  const windowExpired = remaining !== null && remaining <= 0
+
+  // Always-running 1s tick — simpler than conditional start/stop on window state
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  function formatCountdown(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000))
+    const h = Math.floor(totalSec / 3600)
+    const m = Math.floor((totalSec % 3600) / 60)
+    const s = totalSec % 60
+    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+    return `${m}m ${String(s).padStart(2, '0')}s`
+  }
 
   function formatTime(iso, tz) {
     return new Date(iso).toLocaleTimeString('en-US', {
@@ -39,16 +62,36 @@ export default function StatusPanel({ status, onTogglePause }) {
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm divide-y divide-stone-100">
-      {/* Window status */}
+      {/* Window countdown — active */}
       {windowActive && (
         <div className="p-6 text-center">
           <p className="text-sm text-stone-500 mb-1">
-            {status.lastPing.exact ? 'Window ends' : 'Estimated window end'}
+            {status.lastPing.exact ? 'Resets in' : 'Resets in (estimated)'}
           </p>
-          <p className="text-3xl font-bold text-emerald-600">
-            {status.lastPing.exact ? '' : '~'}
+          <p className="text-3xl font-bold text-emerald-600 tabular-nums">
+            {status.lastPing.exact ? '' : '~'}{formatCountdown(remaining)}
+          </p>
+          <p className="text-sm text-stone-400 mt-1">
+            at {formatTime(status.lastPing.windowEnds, status.timezone)} {tzAbbr}
+          </p>
+        </div>
+      )}
+
+      {/* Window expired */}
+      {windowExpired && (
+        <div className="p-6 text-center">
+          <p className="text-sm text-stone-400 mb-1">Window ended</p>
+          <p className="text-2xl font-bold text-stone-400">
             {formatTime(status.lastPing.windowEnds, status.timezone)} {tzAbbr}
           </p>
+        </div>
+      )}
+
+      {/* Last ping failed — no window info */}
+      {status.lastPing && !status.lastPing.success && !windowEndsMs && (
+        <div className="p-6 text-center">
+          <p className="text-sm text-red-500 mb-1">Last ping failed</p>
+          <p className="text-lg font-semibold text-red-600">No active window</p>
         </div>
       )}
 
@@ -64,7 +107,7 @@ export default function StatusPanel({ status, onTogglePause }) {
         </Row>
 
         {/* Token health */}
-        {status.hasCredentials && (
+        {status.hasCredentials && health && (
           <Row label="Token health">
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${health.bg} ${health.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${health.dot}`} />

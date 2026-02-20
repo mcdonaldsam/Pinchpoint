@@ -3,12 +3,19 @@
 // Zero dependencies. Reads Claude token and sends it to PinchPoint via polling-based approval.
 
 import { readFile } from 'fs/promises'
+import { createHash } from 'crypto'
 import { homedir } from 'os'
 import { join } from 'path'
 import { execFileSync } from 'child_process'
 
 const API_URL = process.env.PINCHPOINT_API_URL || 'https://api.pinchpoint.dev'
 const FRONTEND_URL = process.env.PINCHPOINT_FRONTEND_URL || 'https://pinchpoint.dev'
+
+// Prevent token transmission over unencrypted connections
+if (!API_URL.startsWith('https://') && !API_URL.startsWith('http://localhost')) {
+  console.error('  \x1b[31mAPI URL must use HTTPS\x1b[39m')
+  process.exit(1)
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -66,11 +73,15 @@ async function connect() {
   const token = await getClaudeToken()
   process.stdout.write(green('found') + '\n')
 
-  // Step 2: Start session
+  // Step 2: Start session (include token fingerprint + verification code hash)
+  const tokenFingerprint = createHash('sha256').update(token).digest('hex').slice(0, 32)
+  const verificationCode = String(Math.floor(1000 + Math.random() * 9000))
+  const codeHash = createHash('sha256').update(verificationCode).digest('hex')
   process.stdout.write('  Starting connect session... ')
   const startRes = await fetch(`${API_URL}/api/connect/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokenFingerprint, codeHash }),
   })
   if (!startRes.ok) {
     process.stdout.write(red('failed') + '\n')
@@ -80,8 +91,14 @@ async function connect() {
   const { sessionId } = await startRes.json()
   process.stdout.write(green('ok') + '\n')
 
-  // Step 3: Open browser
+  // Step 3: Open browser — show verification code
   const approveUrl = `${FRONTEND_URL}/connect?session=${sessionId}`
+  log()
+  log(bold('Verification code:'))
+  log()
+  log(`    ${bold(cyan(verificationCode.split('').join(' ')))}`)
+  log()
+  log(dim('Enter this code in the browser to confirm the connection.'))
   log()
   log(bold('Approve in your browser:'))
   log(cyan(approveUrl))
@@ -113,7 +130,7 @@ async function connect() {
       const completeRes = await fetch(`${API_URL}/api/connect/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, setupToken: token }),
+        body: JSON.stringify({ sessionId, setupToken: token, tokenFingerprint }),
       })
 
       if (!completeRes.ok) {

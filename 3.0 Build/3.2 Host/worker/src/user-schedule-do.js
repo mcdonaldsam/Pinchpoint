@@ -1,8 +1,15 @@
 // UserScheduleDO — One Durable Object per user
 // Handles schedule storage, alarm-based ping scheduling, retry logic, token health
 
-import { decryptToken, signPingRequest } from './crypto.js'
-import { sendPingNotification, sendTokenWarningNotification, sendTokenExpiredNotification } from './email.js'
+import { decryptToken, encryptToken, signPingRequest, deriveUserKey } from './crypto.js'
+import { sendPingNotification, sendTokenWarningNotification, sendTokenExpiredNotification, sendDisconnectNotification } from './email.js'
+
+// Strip tokens from error messages to prevent leaks in logs
+const TOKEN_PATTERN = /sk-ant-\w{3,6}-[A-Za-z0-9_-]{10,}/g
+function sanitizeError(msg) {
+  if (typeof msg !== 'string') return String(msg)
+  return msg.replace(TOKEN_PATTERN, 'sk-ant-***REDACTED***')
+}
 
 export class UserScheduleDO {
   constructor(state, env) {
@@ -19,11 +26,13 @@ export class UserScheduleDO {
         case '/set-schedule': return this.setSchedule(request)
         case '/set-token': return this.setToken(request)
         case '/toggle-pause': return this.togglePause(request)
+        case '/disconnect-token': return this.disconnectToken()
         case '/delete-account': return this.deleteAccount()
         default: return json({ error: 'Not found' }, 404)
       }
     } catch (e) {
-      return json({ error: e.message }, 500)
+      console.error('DO error:', sanitizeError(e.message || String(e)))
+      return json({ error: 'Internal error' }, 500)
     }
   }
 
@@ -36,27 +45,42 @@ export class UserScheduleDO {
     const encryptedToken = await this.state.storage.get('setupToken')
     if (!encryptedToken) return
 
+    const userId = await this.state.storage.get('userId')
+    if (!userId) return
+
     let token
     try {
-      token = await decryptToken(encryptedToken, this.env.ENCRYPTION_KEY)
+      const userKey = await deriveUserKey(this.env.ENCRYPTION_KEY, userId)
+      token = await decryptToken(encryptedToken, userKey)
     } catch {
-      // Decryption failed — token data is corrupt
+      // Decryption failed — token data is corrupt, auto-pause to prevent infinite loop
       await this.state.storage.put('tokenHealth', 'red')
-      return this.scheduleNextAlarm()
+      await this.state.storage.put('paused', true)
+      const email = await this.state.storage.get('email')
+      if (email && this.env.RESEND_API_KEY) {
+        sendTokenExpiredNotification(this.env, email)
+      }
+      return // Don't reschedule — token is unrecoverable without reconnect
     }
 
-    // Sign the request with HMAC
-    const timestamp = Date.now()
-    const signature = await signPingRequest(token, timestamp, this.env.PING_SECRET)
+    // Encrypt token for transit (separate key from storage encryption)
+    const transitPayload = await encryptToken(token, this.env.PING_ENCRYPTION_KEY)
+    token = null // Clear plaintext from memory
 
-    // Call ping service
+    // Sign the encrypted payload with HMAC (includes nonce for replay protection)
+    const timestamp = Date.now()
+    const nonce = crypto.randomUUID()
+    const signature = await signPingRequest(transitPayload, timestamp, nonce, this.env.PING_SECRET)
+
+    // Call ping service (25s timeout — under Worker's 30s CPU limit for cold starts)
     let success = false
     let rateLimitInfo = null
     try {
       const res = await fetch(`${this.env.PING_SERVICE_URL}/ping`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, timestamp, signature }),
+        body: JSON.stringify({ encryptedToken: transitPayload, timestamp, nonce, signature }),
+        signal: AbortSignal.timeout(25_000),
       })
       const data = await res.json()
       success = data.success === true
@@ -123,6 +147,8 @@ export class UserScheduleDO {
       // Retry in 2 minutes
       await this.state.storage.setAlarm(Date.now() + 2 * 60 * 1000)
     } else {
+      // Early warning — 1-2 failures, show degraded state in dashboard
+      await this.state.storage.put('tokenHealth', 'yellow')
       // Retry in 2 minutes
       await this.state.storage.setAlarm(Date.now() + 2 * 60 * 1000)
     }
@@ -142,8 +168,9 @@ export class UserScheduleDO {
     const schedule = await this.state.storage.get('schedule')
     const timezone = await this.state.storage.get('timezone') || 'UTC'
     const paused = await this.state.storage.get('paused')
+    const hasToken = await this.state.storage.get('setupToken')
 
-    if (!schedule || paused) {
+    if (!schedule || paused || !hasToken) {
       await this.state.storage.deleteAlarm()
       return
     }
@@ -189,11 +216,36 @@ export class UserScheduleDO {
     return json({ paused: !!paused })
   }
 
+  // ─── Disconnect token (preserve account + schedule) ────────
+
+  async disconnectToken() {
+    const email = await this.state.storage.get('email')
+    await this.state.storage.deleteAlarm()
+    await this.state.storage.delete('setupToken')
+    await this.state.storage.put('consecutiveFailures', 0)
+    await this.state.storage.put('tokenHealth', 'green')
+    await this.state.storage.put('paused', false)
+
+    if (email && this.env.RESEND_API_KEY) {
+      sendDisconnectNotification(this.env, email)
+    }
+
+    return json({ ok: true })
+  }
+
   // ─── Account deletion ──────────────────────────────────────
 
   async deleteAccount() {
+    const email = await this.state.storage.get('email')
+    const hasToken = await this.state.storage.get('setupToken')
     await this.state.storage.deleteAlarm()
     await this.state.storage.deleteAll()
+
+    // Send revocation instructions if they had a token stored
+    if (hasToken && email && this.env.RESEND_API_KEY) {
+      sendDisconnectNotification(this.env, email)
+    }
+
     return json({ ok: true })
   }
 

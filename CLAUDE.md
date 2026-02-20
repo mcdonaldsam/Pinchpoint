@@ -59,43 +59,66 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 
 ---
 
-## Build Status (as of 2026-02-20)
+## Build & Deployment Status (as of 2026-02-21)
 
-### Worker API — COMPLETE
+### Everything is DEPLOYED, LIVE, and WORKING
+
+| Component | URL | Status |
+|-----------|-----|--------|
+| Worker API | `https://api.pinchpoint.dev` | Live (`/api/health` → `{"ok":true}`) |
+| Frontend | `https://pinchpoint.dev` | Live |
+| Ping Service | `https://pinchpoint-ping.fly.dev` | Live (Fly.io, app: `pinchpoint-ping`) |
+| CLI | `3.0 Build/3.2 Host/cli/` | Built, not yet published to npm |
+
+### Worker API — DEPLOYED
 All routes implemented and wired: health, connect (start/poll/approve/complete), status, schedule, pause, disconnect, account delete. Includes CORS, rate limiting, input validation, Clerk JWT auth with JWKS caching + `kid` rotation, and DO proxy helper.
 
 **Files:** `index.js`, `auth.js`, `crypto.js`, `validate.js`, `email.js`
+**Config:** `CLERK_FRONTEND_API = "clerk.pinchpoint.dev"` in wrangler.toml
 
-### Durable Object (UserScheduleDO) — COMPLETE
+### Durable Object (UserScheduleDO) — DEPLOYED
 Full implementation: schedule storage, alarm-based ping scheduling with DST-aware time calculation, token encrypt/decrypt with HKDF per-user keys, ping service calls with transit encryption + HMAC + nonce, retry logic (2min), token health state machine (green/yellow/red), auto-pause at 5 failures, fire-and-forget email notifications, disconnect + account deletion.
 
-### Ping Service (Fly.io) — COMPLETE
-HMAC signature verification with nonce replay protection, transit token decryption, Agent SDK `query()` execution with `SDKRateLimitEvent` extraction, serialized ping queue (prevents env var race condition), error sanitization, crash handlers. Dockerfile + fly.toml ready.
+### Ping Service (Fly.io) — DEPLOYED
+HMAC signature verification with nonce replay protection, transit token decryption, Agent SDK `query()` execution with `SDKRateLimitEvent` extraction, serialized ping queue (prevents env var race condition), error sanitization, crash handlers.
 
-### CLI — COMPLETE
+### CLI — BUILT (not published)
 Zero-dependency `npx pinchpoint connect`: reads token from `~/.claude/.credentials.json`, generates 4-digit verification code + SHA-256 hash binding, token fingerprint, polling-based approval flow, browser auto-open, HTTPS enforcement.
+**Local run:** `cd "3.0 Build/3.2 Host/cli" && node bin/pinchpoint.mjs connect`
 
-### Frontend — COMPLETE (functional, not deployed)
-- **Landing page** — multiple design variants (A through O) at `/design/*`, active one at `/`
+### Frontend — DEPLOYED
+- **Landing page** — multiple design variants (A through O) in `web/src/pages/`, default at `/`
 - **Dashboard** — status panel, schedule grid (timezone-aware, 15-min increments), pause toggle, disconnect with revocation instructions, account deletion
 - **Connect page** — approval flow for CLI sessions
 - **Privacy / Terms** — static pages
 - **Auth** — Clerk `SignedIn`/`SignedOut` guards, auto-redirect to dashboard when signed in
 - **API client** — `apiFetch` helper with Clerk token injection
 
-### Deployment Configs — COMPLETE
-- **Worker** — `wrangler.toml` with real `account_id` + KV namespace ID, DO migration, cron trigger, `npm run deploy`
-- **Frontend** — `web/wrangler.toml` with static asset serving + SPA fallback
-- **Ping service** — `fly.toml` (app: `pinchpoint-ping`, region: `iad`), Dockerfile (node:22-slim, non-root user, pre-installed Claude CLI), health check
-- **CLI** — `package.json` with `bin` entry + `files` whitelist, ready for `npm publish`
+### Auth & DNS — FULLY CONFIGURED
 
-### Remaining: Deploy + Configure
-- **Secrets** — `wrangler secret put` (6 secrets) + `fly secrets set` (2 secrets)
-- **Clerk** — Create app, set `CLERK_FRONTEND_API` var + publishable/secret keys
-- **Resend** — Create account, verify domain, get API key
-- **Domain** — Configure `pinchpoint.dev` DNS
-- **npm publish** — Publish CLI package
-- **Integration test** — End-to-end connect→schedule→ping→email flow
+**Clerk (Production):**
+- Production keys active (`pk_live_...` / `sk_live_...`)
+- Google OAuth with custom credentials (Client ID + Secret in Clerk SSO connections)
+- Google OAuth redirect URIs: `https://clerk.pinchpoint.dev/v1/oauth_callback` and `https://sweet-giraffe-55.clerk.accounts.dev/v1/oauth_callback`
+- IMPORTANT: Dev and prod are separate environments in Clerk dashboard — always switch to Production before configuring
+
+**DNS (Cloudflare — all CNAME, DNS-only/grey cloud):**
+- `clerk.pinchpoint.dev` → `frontend-api.clerk.services`
+- `accounts.pinchpoint.dev` → `accounts.clerk.services`
+- `clkmail.pinchpoint.dev` → `mail.vd7o1m9v1by4.clerk.services`
+- `clk._domainkey.pinchpoint.dev` → `dkim1.vd7o1m9v1by4.clerk.services`
+- `clk2._domainkey.pinchpoint.dev` → `dkim2.vd7o1m9v1by4.clerk.services`
+- `api.pinchpoint.dev` → Worker
+
+**Worker secrets** (all set via `wrangler secret put`):
+- `CLERK_SECRET_KEY`, `RESEND_API_KEY`, `PING_SERVICE_URL`, `PING_SECRET`, `ENCRYPTION_KEY`, `PING_ENCRYPTION_KEY`
+
+**Ping service secrets** (Fly.io): `PING_SECRET`, `PING_ENCRYPTION_KEY` (match Worker)
+
+### Remaining Work
+- **Choose landing page design** — 15 variants (A-O) created, need to pick one and apply consistent styling to Dashboard/Connect/Privacy/Terms
+- **npm publish** — Publish CLI package to npm registry (`npx pinchpoint connect`)
+- **End-to-end smoke test** — Verify first scheduled ping fires correctly and email is sent
 
 ---
 
@@ -164,6 +187,32 @@ connect:{uuid} → { status, userId?, email?, ... }  (TTL: 5 min)
 - **Headers:** CSP, HSTS, X-Frame-Options DENY, Permissions-Policy, X-Content-Type-Options nosniff
 - **Key isolation:** 3 separate secrets — `ENCRYPTION_KEY` (at-rest, Worker only), `PING_ENCRYPTION_KEY` (transit, Worker + ping), `PING_SECRET` (HMAC, Worker + ping)
 - **Disconnect flow:** Token deletion from DO, alarm cancellation, revocation instructions via email + in-app
+
+---
+
+## Deployment Commands
+
+**IMPORTANT:** Local `wrangler login` is on a different Cloudflare account than the production account in `wrangler.toml`. Always use `CLOUDFLARE_API_TOKEN` env var for deploys. All tokens/keys are in `.env.secrets` (gitignored).
+
+```bash
+# Deploy Worker (source CLOUDFLARE_API_TOKEN from .env.secrets)
+cd "3.0 Build/3.2 Host/worker"
+CLOUDFLARE_API_TOKEN=<see .env.secrets> npx wrangler deploy
+
+# Deploy Frontend
+npm run build --prefix web
+CLOUDFLARE_API_TOKEN=<see .env.secrets> npx wrangler deploy --config web/wrangler.toml
+
+# Set Worker secrets (one-time, already done)
+CLOUDFLARE_API_TOKEN=<see .env.secrets> npx wrangler secret put SECRET_NAME --config "3.0 Build/3.2 Host/worker/wrangler.toml"
+
+# Fly.io ping service
+cd "3.0 Build/3.2 Host/ping-service"
+C:/Users/samcd/.fly/bin/fly.exe deploy
+```
+
+### Credentials Reference
+All API tokens, keys, account IDs, and secrets are stored in `.env.secrets` (gitignored via `.env.*` pattern). Never commit secrets to the repo.
 
 ---
 

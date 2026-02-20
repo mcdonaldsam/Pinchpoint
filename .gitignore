@@ -3,3 +3,7 @@ dist/
 .dev.vars
 .wrangler/
 *.log
+.env
+.env.*
+.env.local
+.env.production

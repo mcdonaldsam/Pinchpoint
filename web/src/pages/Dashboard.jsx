@@ -64,12 +64,17 @@ export default function Dashboard() {
     await fetchStatus()
   }
 
-  async function handleTestPing() {
+  const [pinching, setPinching] = useState(false)
+
+  async function handlePinchNow() {
+    setPinching(true)
     try {
       await apiFetch('/api/test-ping', { method: 'POST' }, getToken)
       await fetchStatus()
     } catch {
       await fetchStatus()
+    } finally {
+      setPinching(false)
     }
   }
 
@@ -160,7 +165,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <StatusPanel status={status} onTogglePause={handleTogglePause} onTestPing={handleTestPing} />
+            <StatusPanel status={status} onTogglePause={handleTogglePause} onPinchNow={handlePinchNow} pinching={pinching} />
             <ScheduleGrid
               schedule={status.schedule}
               timezone={status.timezone}

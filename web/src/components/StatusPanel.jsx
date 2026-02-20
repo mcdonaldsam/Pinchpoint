@@ -12,7 +12,7 @@ const HEALTH_LABELS = {
   red: 'Expired — reconnect required',
 }
 
-export default function StatusPanel({ status, onTogglePause, onTestPing }) {
+export default function StatusPanel({ status, onTogglePause, onPinchNow, pinching }) {
   const health = status.tokenHealth ? HEALTH_COLORS[status.tokenHealth] : null
   const [now, setNow] = useState(() => Date.now())
 
@@ -60,6 +60,14 @@ export default function StatusPanel({ status, onTogglePause, onTestPing }) {
 
   const tzAbbr = formatTzAbbr(status.timezone)
 
+  function formatRelative(iso) {
+    const diff = now - new Date(iso).getTime()
+    if (diff < 60_000) return 'just now'
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`
+    return `${Math.floor(diff / 86400_000)}d ago`
+  }
+
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm divide-y divide-stone-100">
       {/* Window countdown — active */}
@@ -90,7 +98,7 @@ export default function StatusPanel({ status, onTogglePause, onTestPing }) {
       {/* Last ping failed — no window info */}
       {status.lastPing && !status.lastPing.success && !windowEndsMs && (
         <div className="p-6 text-center">
-          <p className="text-sm text-red-500 mb-1">Last ping failed</p>
+          <p className="text-sm text-red-500 mb-1">Last pinch failed</p>
           <p className="text-lg font-semibold text-red-600">No active window</p>
         </div>
       )}
@@ -116,22 +124,22 @@ export default function StatusPanel({ status, onTogglePause, onTestPing }) {
           </Row>
         )}
 
-        {/* Next ping */}
-        {status.nextPing && !status.paused && (
-          <Row label="Next ping">
-            <span className="text-sm text-stone-600">
-              {capitalize(status.nextPing.day)} at {status.nextPing.time} {tzAbbr}
+        {/* Pinched at */}
+        {status.lastPing && (
+          <Row label="Pinched at">
+            <span className={`text-sm ${status.lastPing.success ? 'text-emerald-600' : 'text-red-600'}`}>
+              {status.lastPing.success ? '' : 'Failed — '}
+              {formatTime(status.lastPing.time, status.timezone)} {tzAbbr}
+              <span className="text-stone-400 ml-1">({formatRelative(status.lastPing.time)})</span>
             </span>
           </Row>
         )}
 
-        {/* Last ping */}
-        {status.lastPing && (
-          <Row label="Last ping">
-            <span className={`text-sm ${status.lastPing.success ? 'text-emerald-600' : 'text-red-600'}`}>
-              {status.lastPing.success ? 'Success' : 'Failed'}
-              {' — '}
-              {formatTime(status.lastPing.time, status.timezone)} {tzAbbr}
+        {/* Next pinch */}
+        {status.nextPing && !status.paused && (
+          <Row label="Next pinch">
+            <span className="text-sm text-stone-600">
+              {capitalize(status.nextPing.day)} at {status.nextPing.time} {tzAbbr}
             </span>
           </Row>
         )}
@@ -150,16 +158,18 @@ export default function StatusPanel({ status, onTogglePause, onTestPing }) {
           </Row>
         )}
 
-        {/* Test ping */}
-        {status.hasCredentials && onTestPing && (
-          <Row label="Test">
+        {/* Pinch now — manual trigger, works on mobile */}
+        {status.hasCredentials && onPinchNow && (
+          <div className="pt-2">
             <button
-              onClick={onTestPing}
-              className="text-sm font-medium text-stone-500 hover:text-stone-700 cursor-pointer"
+              onClick={onPinchNow}
+              disabled={pinching}
+              className="w-full py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-stone-100 text-stone-600 hover:bg-stone-200 active:bg-stone-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Send test ping
+              {pinching && <Spinner />}
+              {pinching ? 'Pinching...' : 'Pinch now'}
             </button>
-          </Row>
+          </div>
         )}
       </div>
     </div>
@@ -177,4 +187,13 @@ function Row({ label, children }) {
 
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+}
+
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
 }

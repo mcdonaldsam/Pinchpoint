@@ -1,0 +1,14 @@
+Bloat removal plan for background/index.ts:
+
+1. Lines 18-19: Commented imports
+2. Lines 23: Deprecated debug flag comment
+3. Lines 30-32: Unused config constants
+4. Line 48: "Note:" comment
+5. Line 148: "Retry helper imported" comment
+6. Lines 349-350: "Mutex..." comments
+7. Lines 453-466: extractOwnerNameFromEmail function
+8. Lines 1408-1437: checkSenderTrust handler
+9. Lines 1947-2475: Entire Phase 2 sync architecture
+10. Duplicate listeners need consolidation
+
+Total removal: ~710 lines

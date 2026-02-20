@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "WebSearch",
+      "WebFetch",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "Task",
+      "TodoWrite",
+      "mcp__plugin_playwright_playwright__*",
+      "Skill(web-search)",
+      "Skill(web-search:*)",
+      "mcp__plugin_serena_serena__*"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "enableAllProjectMcpServers": true,
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  }
+}

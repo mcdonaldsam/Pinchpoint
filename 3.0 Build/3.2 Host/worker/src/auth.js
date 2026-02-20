@@ -32,7 +32,7 @@ export async function verifyClerkSession(request, env) {
   if (!authHeader?.startsWith('Bearer ')) return null
 
   const token = authHeader.slice(7)
-  const clerkDomain = env.CLERK_FRONTEND_API || 'clerk.pinchpoint.dev'
+  const clerkDomain = env.CLERK_FRONTEND_API || 'sweet-giraffe-55.clerk.accounts.dev'
 
   try {
     // Decode JWT header to get kid

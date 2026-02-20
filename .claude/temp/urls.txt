@@ -1,0 +1,3 @@
+# Paste image URLs here (one per line)
+# Then run: .\download-images.ps1 urls.txt
+

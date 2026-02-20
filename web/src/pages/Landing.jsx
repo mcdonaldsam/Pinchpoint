@@ -44,7 +44,7 @@ export default function Landing() {
           <SignedOut>
             <SignInButton mode="modal">
               <button className="px-6 py-3 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-800 transition-colors cursor-pointer">
-                Get started
+                Pinch me
               </button>
             </SignInButton>
           </SignedOut>
@@ -54,7 +54,7 @@ export default function Landing() {
       {/* How it works */}
       <section className="max-w-3xl mx-auto px-6 py-16">
         <h2 className="text-2xl font-bold text-center mb-12">How it works</h2>
-        <div className="grid gap-8 sm:grid-cols-2">
+        <div className="grid gap-6 max-w-lg mx-auto">
           <Step n="1" title="Sign up" desc="Create an account — takes 10 seconds." />
           <Step n="2" title="Connect Claude" desc="Run one command in your terminal to link your Claude account." />
           <Step n="3" title="Set your schedule" desc="Pick which days and times you want your window to start." />
@@ -87,10 +87,10 @@ export default function Landing() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-lg mb-2">$5/month</h3>
+            <h3 className="font-semibold text-lg mb-2">Free</h3>
             <p className="text-stone-500">
-              Flat rate. No per-ping charges. Scales to thousands of users at
-              the same price.
+              No subscriptions. No per-ping charges. Just connect your account
+              and go.
             </p>
           </div>
         </div>
@@ -98,7 +98,12 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="max-w-4xl mx-auto px-6 py-8 border-t border-stone-200 text-center text-sm text-stone-400">
-        PinchPoint is not affiliated with Anthropic.
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <Link to="/privacy" className="hover:text-stone-600">Privacy</Link>
+          <span>·</span>
+          <Link to="/terms" className="hover:text-stone-600">Terms</Link>
+        </div>
+        Your Claude token is encrypted at rest. PinchPoint is not affiliated with Anthropic.
       </footer>
     </div>
   )

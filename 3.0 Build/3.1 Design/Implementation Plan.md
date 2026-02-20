@@ -514,16 +514,19 @@ PinchPoint/
 
 ## Hosting Costs
 
+All services run on free tiers. Confirmed 2026-02-20.
+
 | Service | Free Tier | PinchPoint Usage |
 |---------|-----------|-----------------|
 | Cloudflare Workers | 100k req/day, 5 cron triggers | API + cron — well within |
-| Cloudflare KV | 100k reads/day, 1k writes/day | User data + schedules — well within |
-| Cloudflare Pages | Unlimited sites, 500 builds/mo | Dashboard — well within |
-| Google Cloud Run | 2M req/mo, 180k vCPU-sec/mo | 1 ping/user/day — well within |
+| Cloudflare Durable Objects | 100k req/day, 13k GB-sec/day, 5GB storage | Per-user scheduling — well within |
+| Cloudflare KV | 100k reads/day, 1k writes/day | Connect sessions — well within |
+| Cloudflare Workers (frontend) | Included (static assets) | Dashboard — well within |
+| Fly.io | 3 shared VMs (256MB each) | 1 ping/user/day — well within |
 | Clerk | 10k MAU free | Auth — well within |
-| Resend | 3k emails/mo free | Notifications — well within |
+| Resend | 100 emails/day free | Notifications — well within |
 
-**Total: $0/month** up to thousands of users.
+**Total: $0/month** up to thousands of users. No paid plan required — Cloudflare added Durable Objects to the free tier (previously required the $5/mo Workers Paid plan).
 
 ## Verification
 

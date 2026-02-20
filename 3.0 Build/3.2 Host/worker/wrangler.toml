@@ -1,6 +1,7 @@
 name = "pinchpoint"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
+account_id = "704f1ca4f88ce7b89c464af6f5dfb682"
 
 # Maintenance cron only — ping scheduling is handled by DO alarms
 [triggers]
@@ -13,12 +14,12 @@ class_name = "UserScheduleDO"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["UserScheduleDO"]
+new_sqlite_classes = ["UserScheduleDO"]
 
 # KV: ephemeral connect sessions (5 min TTL)
 [[kv_namespaces]]
 binding = "KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "5d9bb168e2344a39bf39753f1ef8a2e7"
 
 # Public vars
 [vars]

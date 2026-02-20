@@ -13,7 +13,7 @@ export { UserScheduleDO }
 function corsHeaders(env) {
   return {
     'Access-Control-Allow-Origin': env.FRONTEND_URL || 'https://pinchpoint.dev',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   }
 }
@@ -110,6 +110,9 @@ export default {
         if (!body?.sessionId) return json({ error: 'Missing sessionId' }, 400, headers)
         return connectApprove(env, userId, body.sessionId, headers)
       }
+
+      case 'DELETE /api/account':
+        return proxyToDO(stub, '/delete-account', 'DELETE', null, headers)
 
       default:
         return json({ error: 'Not found' }, 404, headers)

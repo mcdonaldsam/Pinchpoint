@@ -185,3 +185,29 @@ Same fundamental problems as Option 1 (web scraping) but on serverless platforms
 Claude Code CLI and Agent SDK are official Anthropic products. The ToS prohibition on "automated access through bots or scripts" targets the claude.ai web interface, not CLI/SDK. However, using automation to game window timing is not an intended use case and Anthropic could view it unfavorably.
 
 Sources: [Anthropic Consumer ToS](https://privacy.claude.com/en/articles/9264813-consumer-terms-of-service-updates), [VentureBeat: Anthropic crackdown](https://venturebeat.com/technology/anthropic-cracks-down-on-unauthorized-claude-usage-by-third-party-harnesses), [Claude Code auth docs](https://code.claude.com/docs/en/authentication)
+
+---
+
+## Final Architecture (Chosen — 2026-02-20)
+
+**Approach:** Option 4 (Agent SDK) deployed on Fly.io, orchestrated by Cloudflare Workers + Durable Objects.
+
+| Component | Platform | Cost |
+|-----------|----------|------|
+| API + routing | Cloudflare Workers (free) | $0 |
+| Per-user scheduling | Cloudflare Durable Objects (free — 100K req/day, 5GB) | $0 |
+| Connect sessions | Cloudflare KV (free) | $0 |
+| Ping execution | Fly.io (free — 3 shared VMs) | $0 |
+| Frontend | Cloudflare Workers + static assets (free) | $0 |
+| Auth | Clerk (free — 10K MAU) | $0 |
+| Email | Resend (free — 100 emails/day) | $0 |
+| **Total** | | **$0/month** |
+
+**Key finding:** Cloudflare added Durable Objects to the free tier (previously required $5/mo Workers Paid plan). This makes the entire stack completely free. Fly.io chosen over Google Cloud Run for simpler setup (`fly launch` vs full GCP project configuration).
+
+**Scaling headroom on free tiers:**
+- DO: 100K requests/day → supports ~50K+ users (2 req/user/day for alarm + status)
+- Fly.io: 3 VMs with 256MB each → handles hundreds of concurrent pings
+- KV: 1K writes/day → sufficient for connect sessions
+- Clerk: 10K monthly active users
+- Resend: 100 emails/day → ~100 daily active users before upgrade needed

@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth, UserButton } from '@clerk/clerk-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth, useClerk, UserButton } from '@clerk/clerk-react'
 import { apiFetch } from '../lib/api'
 import StatusPanel from '../components/StatusPanel'
 import ScheduleGrid from '../components/ScheduleGrid'
 
 export default function Dashboard() {
   const { getToken } = useAuth()
+  const { signOut } = useClerk()
+  const navigate = useNavigate()
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -43,6 +47,18 @@ export default function Dashboard() {
       body: JSON.stringify({ paused: !status.paused }),
     }, getToken)
     await fetchStatus()
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true)
+    try {
+      await apiFetch('/api/account', { method: 'DELETE' }, getToken)
+      await signOut()
+      navigate('/')
+    } catch {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
   }
 
   return (
@@ -88,6 +104,38 @@ export default function Dashboard() {
               timezone={status.timezone}
               onSave={handleScheduleSave}
             />
+
+            {/* Danger zone */}
+            <div className="border border-red-200 rounded-xl p-6">
+              <h3 className="text-sm font-semibold text-red-900 mb-1">Delete account</h3>
+              <p className="text-xs text-red-700/70 mb-4">
+                Permanently delete your account and all stored data, including your encrypted token.
+              </p>
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-sm text-red-600 font-medium hover:text-red-700 cursor-pointer"
+                >
+                  Delete my account
+                </button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleting}
+                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    {deleting ? 'Deleting...' : 'Yes, delete everything'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="text-sm text-stone-500 hover:text-stone-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

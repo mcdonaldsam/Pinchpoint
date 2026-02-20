@@ -1,0 +1,2 @@
+The file-handlers.ts content goes here - approximately 500 lines
+This is the largest handler file with file operations

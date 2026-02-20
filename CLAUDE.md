@@ -15,13 +15,13 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 |-----------|----------|------|
 | API + routing | Cloudflare Worker | `3.0 Build/3.2 Host/worker/` |
 | Per-user scheduling | Durable Objects (alarms) | `3.0 Build/3.2 Host/worker/src/user-schedule-do.js` |
-| Ping execution | Google Cloud Run | `3.0 Build/3.2 Host/ping-service/` |
+| Ping execution | Fly.io (container) | `3.0 Build/3.2 Host/ping-service/` |
 | Dashboard | Cloudflare Pages | `web/` |
 | CLI (connect only) | npm package | `3.0 Build/3.2 Host/cli/` |
 
 **Connect flow:** User runs `npx pinchpoint connect` → CLI reads Claude token from `~/.claude/.credentials.json` → CLI starts polling session → opens browser to PinchPoint → user clicks Approve → CLI sends token → encrypted and stored in DO.
 
-**Ping flow:** User sets schedule → Worker routes to user's DO → DO sets alarm → Alarm fires → DO decrypts token, signs HMAC request → calls Cloud Run `/ping` → Cloud Run runs Agent SDK `query()`, extracts `SDKRateLimitEvent` → returns `{ success, rateLimitInfo }` → DO stores result with exact `resetsAt`, fire-and-forget email, schedules next alarm.
+**Ping flow:** User sets schedule → Worker routes to user's DO → DO sets alarm → Alarm fires → DO decrypts token, signs HMAC request → calls Fly.io `/ping` → Fly.io runs Agent SDK `query()`, extracts `SDKRateLimitEvent` → returns `{ success, rateLimitInfo }` → DO stores result with exact `resetsAt`, fire-and-forget email, schedules next alarm.
 
 **Why DOs over KV + cron:** KV `list()` caps at 1,000 keys per call, is eventually consistent (60s propagation), and scanning all users every minute hits the 30-second CPU limit. DOs give per-user isolation, strong consistency, and alarm-based scheduling with no fan-out.
 
@@ -30,14 +30,14 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 ## Tech Stack
 
 - **Cloudflare Workers + Durable Objects + KV + Pages** — API, per-user scheduling, connect sessions, frontend
-- **Google Cloud Run** — container runtime for Agent SDK (free tier: 2M req/mo)
+- **Fly.io** — container runtime for Agent SDK (free tier: 3 shared VMs)
 - **`@anthropic-ai/claude-agent-sdk`** — the ONLY way to ping Claude Pro/Max (see spike results)
 - **React 19 + Vite + Tailwind CSS** — frontend
 - **Clerk** — auth (JWT verification with JWKS caching + `kid` matching)
 - **Resend** — email notifications (fire-and-forget, timezone-aware)
 - **Node.js CLI** — `npx pinchpoint connect` (zero dependencies)
 
-**Cost:** $5/month (Workers Paid plan required for Durable Objects)
+**Cost:** $0/month — Cloudflare Free plan includes Durable Objects (100K req/day, 5GB storage), Fly.io free tier covers ping service, Clerk + Resend free tiers cover auth + email
 
 ---
 
@@ -111,7 +111,7 @@ connect:{uuid} → { status, userId?, email?, ... }  (TTL: 5 min)
 ## Security
 
 - **Token encryption:** AES-256-GCM via Web Crypto API. Per-token random IV. Key stored as Worker secret.
-- **Cloud Run auth:** HMAC-SHA256 request signing with timestamp (60s replay window)
+- **Ping service auth:** HMAC-SHA256 request signing with timestamp (60s replay window)
 - **CORS:** Locked to `env.FRONTEND_URL` (not `*`)
 - **JWT auth:** JWKS cached 1 hour, `kid` matching with rotation fallback
 - **Input validation:** Schedule days, times (15-min increments), timezone all validated
@@ -145,12 +145,23 @@ PINCHPOINT_API_URL=http://localhost:8787 pinchpoint connect
 
 ---
 
+## Build Plans
+
+All major implementation plans and design documents MUST be saved as `.md` files in `3.0 Build/3.1 Design/`. When starting any significant feature, phase, or architectural change, write a plan document there before coding.
+
+**Directory:** `3.0 Build/3.1 Design/`
+
+Existing plans:
+- `Implementation Plan.md` — original v1 implementation plan
+
+---
+
 ## Secrets (never commit)
 
 Worker secrets (via `wrangler secret put`):
 - `CLERK_SECRET_KEY` — Clerk backend key
 - `RESEND_API_KEY` — Resend email API key
-- `PING_SERVICE_URL` — Cloud Run service URL
+- `PING_SERVICE_URL` — Fly.io service URL
 - `PING_SECRET` — HMAC shared secret for request signing
 - `ENCRYPTION_KEY` — AES-256 key (hex-encoded, 32 bytes)
 

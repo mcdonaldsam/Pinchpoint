@@ -1,0 +1,8 @@
+name = "pinchpoint-web"
+compatibility_date = "2026-02-20"
+account_id = "704f1ca4f88ce7b89c464af6f5dfb682"
+
+[assets]
+directory = "./dist"
+html_handling = "auto-trailing-slash"
+not_found_handling = "single-page-application"

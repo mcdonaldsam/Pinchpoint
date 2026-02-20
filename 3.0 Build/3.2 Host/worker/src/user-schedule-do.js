@@ -19,6 +19,7 @@ export class UserScheduleDO {
         case '/set-schedule': return this.setSchedule(request)
         case '/set-token': return this.setToken(request)
         case '/toggle-pause': return this.togglePause(request)
+        case '/delete-account': return this.deleteAccount()
         default: return json({ error: 'Not found' }, 404)
       }
     } catch (e) {
@@ -186,6 +187,14 @@ export class UserScheduleDO {
     }
 
     return json({ paused: !!paused })
+  }
+
+  // ─── Account deletion ──────────────────────────────────────
+
+  async deleteAccount() {
+    await this.state.storage.deleteAlarm()
+    await this.state.storage.deleteAll()
+    return json({ ok: true })
   }
 
   // ─── Status ──────────────────────────────────────────────────

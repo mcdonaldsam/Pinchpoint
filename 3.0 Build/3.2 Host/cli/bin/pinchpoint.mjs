@@ -1,225 +1,165 @@
 #!/usr/bin/env node
-// PinchPoint CLI — one-command connect flow
-// Usage: npx pinchpoint connect
+// PinchPoint CLI — `npx pinchpoint connect`
+// Zero dependencies. Reads Claude token and sends it to PinchPoint via polling-based approval.
 
 import { readFile } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
 import { execFileSync } from 'child_process'
-import { createInterface } from 'readline'
 
-const API_URL = process.env.PINCHPOINT_API_URL || 'https://pinchpoint.dev'
+const API_URL = process.env.PINCHPOINT_API_URL || 'https://api.pinchpoint.dev'
+const FRONTEND_URL = process.env.PINCHPOINT_FRONTEND_URL || 'https://pinchpoint.dev'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-function log(msg) { process.stdout.write(`  ${msg}\n`) }
-function logBold(msg) { process.stdout.write(`\n  \x1b[1m${msg}\x1b[0m\n`) }
-function logGreen(msg) { process.stdout.write(`  \x1b[32m${msg}\x1b[0m\n`) }
-function logRed(msg) { process.stdout.write(`  \x1b[31m${msg}\x1b[0m\n`) }
-function logDim(msg) { process.stdout.write(`  \x1b[2m${msg}\x1b[0m\n`) }
+const bold = t => `\x1b[1m${t}\x1b[22m`
+const dim = t => `\x1b[2m${t}\x1b[22m`
+const green = t => `\x1b[32m${t}\x1b[39m`
+const red = t => `\x1b[31m${t}\x1b[39m`
+const cyan = t => `\x1b[36m${t}\x1b[39m`
 
+function log(msg = '') { process.stdout.write(`  ${msg}\n`) }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 function openBrowser(url) {
-  const cmd = process.platform === 'win32' ? 'start'
-    : process.platform === 'darwin' ? 'open'
-    : 'xdg-open'
   try {
     if (process.platform === 'win32') {
       execFileSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' })
     } else {
-      execFileSync(cmd, [url], { stdio: 'ignore' })
+      execFileSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore' })
     }
   } catch {
     log(`Open this URL in your browser: ${url}`)
   }
 }
 
-// ─── Step 1: Get Claude token ────────────────────────────────────
+// ─── Read Claude token ──────────────────────────────────────────
 
 async function getClaudeToken() {
   const credsPath = join(homedir(), '.claude', '.credentials.json')
 
   try {
     const creds = JSON.parse(await readFile(credsPath, 'utf-8'))
-    const token = creds.claudeAiOauth?.accessToken
-
-    if (token && Date.now() < (creds.claudeAiOauth?.expiresAt || 0)) {
-      return token
-    }
-
-    if (token) {
-      // Token exists but may be expired — setup-token generates long-lived tokens
-      // so if it starts with sk-ant-oat01 it's likely still valid (~1 year)
-      if (token.startsWith('sk-ant-oat01-')) {
-        return token
-      }
-    }
-  } catch {
-    // No credentials file — need to generate
-  }
-
-  // Try to run claude setup-token
-  log('No Claude credentials found.')
-  log('')
-  log('Checking for Claude Code CLI...')
-
-  try {
-    execFileSync('claude', ['--version'], { stdio: 'ignore' })
-  } catch {
-    logRed('Claude Code CLI is not installed.')
-    log('')
-    log('Install it first:')
-    log('  npm install -g @anthropic-ai/claude-code')
-    log('')
-    log('Then run:')
-    log('  claude setup-token')
-    log('')
-    log('After that, run this command again:')
-    log('  npx pinchpoint connect')
-    process.exit(1)
-  }
-
-  log('Running claude setup-token...')
-  log('Follow the prompts in your browser to authorize.')
-  log('')
-
-  try {
-    execFileSync('claude', ['setup-token'], {
-      stdio: 'inherit',
-      timeout: 120_000,
-    })
-  } catch {
-    logRed('claude setup-token failed.')
-    log('Try running it manually: claude setup-token')
-    process.exit(1)
-  }
-
-  // Re-read credentials after setup
-  try {
-    const creds = JSON.parse(await readFile(credsPath, 'utf-8'))
-    const token = creds.claudeAiOauth?.accessToken
+    // setup-token generates long-lived tokens (~1 year, sk-ant-oat01-...)
+    const token = creds?.claudeAiOauth?.accessToken
     if (token) return token
   } catch {
-    // fall through
+    // No credentials file
   }
 
-  logRed('Could not read Claude credentials after setup.')
+  log(red('No Claude credentials found.'))
+  log()
+  log(`Run ${cyan('claude setup-token')} first to generate a long-lived token,`)
+  log(`then re-run ${cyan('npx pinchpoint connect')}.`)
   process.exit(1)
 }
 
-// ─── Step 2-4: Connect to PinchPoint ─────────────────────────────
+// ─── Connect flow ───────────────────────────────────────────────
 
-async function connectToPinchPoint(setupToken) {
-  // Step 2: Start a connect session
+async function connect() {
+  console.log()
+  log(bold('PinchPoint Connect'))
+  log(dim('Link your Claude credentials\n'))
+
+  // Step 1: Read token
+  process.stdout.write('  Reading Claude token... ')
+  const token = await getClaudeToken()
+  process.stdout.write(green('found') + '\n')
+
+  // Step 2: Start session
+  process.stdout.write('  Starting connect session... ')
   const startRes = await fetch(`${API_URL}/api/connect/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   })
-
   if (!startRes.ok) {
-    logRed(`Failed to start connect session (${startRes.status})`)
+    process.stdout.write(red('failed') + '\n')
+    log(dim(`Server returned ${startRes.status}`))
     process.exit(1)
   }
-
   const { sessionId } = await startRes.json()
+  process.stdout.write(green('ok') + '\n')
 
-  // Step 3: Open browser for approval
-  log('Opening PinchPoint in your browser...')
-  openBrowser(`${API_URL}/connect?session=${sessionId}`)
-  log('')
+  // Step 3: Open browser
+  const approveUrl = `${FRONTEND_URL}/connect?session=${sessionId}`
+  log()
+  log(bold('Approve in your browser:'))
+  log(cyan(approveUrl))
+  log()
+  openBrowser(approveUrl)
 
   // Step 4: Poll for approval
   const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
   let i = 0
-  const timeout = Date.now() + 5 * 60 * 1000 // 5 minute timeout
+  const deadline = Date.now() + 5 * 60 * 1000
 
-  while (Date.now() < timeout) {
+  while (Date.now() < deadline) {
     process.stdout.write(`\r  ${spinner[i++ % spinner.length]} Waiting for approval...`)
+    await sleep(2000)
 
-    const pollRes = await fetch(`${API_URL}/api/connect/poll?session=${sessionId}`)
-    const pollData = await pollRes.json()
-
-    if (pollData.status === 'approved') {
-      process.stdout.write('\r  Waiting for approval... approved!  \n')
-      break
+    let poll
+    try {
+      const res = await fetch(`${API_URL}/api/connect/poll?session=${sessionId}`)
+      poll = await res.json()
+    } catch {
+      continue // Network blip
     }
 
-    if (pollData.status === 'expired') {
-      process.stdout.write('\r')
-      logRed('Session expired. Run this command again.')
+    if (poll.status === 'approved') {
+      process.stdout.write(`\r  ${green('✓')} Approved!                \n`)
+
+      // Step 5: Send token
+      process.stdout.write('  Sending credentials... ')
+      const completeRes = await fetch(`${API_URL}/api/connect/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, setupToken: token }),
+      })
+
+      if (!completeRes.ok) {
+        const err = await completeRes.json().catch(() => ({}))
+        process.stdout.write(red('failed') + '\n')
+        log(dim(err.error || 'Unknown error'))
+        process.exit(1)
+      }
+
+      process.stdout.write(green('done') + '\n')
+      log()
+      log(green('Connected successfully!'))
+      log(dim('Set your schedule at ') + cyan(FRONTEND_URL))
+      log()
+      process.exit(0)
+    }
+
+    if (poll.status === 'expired') {
+      process.stdout.write(`\r  ${red('✗')} Session expired.         \n`)
+      log(dim('Run the command again.'))
       process.exit(1)
     }
-
-    await sleep(2000)
   }
 
-  if (Date.now() >= timeout) {
-    process.stdout.write('\r')
-    logRed('Timed out waiting for approval.')
+  process.stdout.write(`\r  ${red('✗')} Timed out.               \n`)
+  log(dim('No approval received within 5 minutes.'))
+  process.exit(1)
+}
+
+// ─── Entry ───────────────────────────────────────────────────────
+
+const command = process.argv[2]
+
+if (command === 'connect') {
+  connect().catch(e => {
+    log(red(`Error: ${e.message}`))
     process.exit(1)
-  }
-
-  // Step 5: Send token
-  log('Connecting...')
-
-  const completeRes = await fetch(`${API_URL}/api/connect/complete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, setupToken }),
   })
-
-  if (!completeRes.ok) {
-    const err = await completeRes.json().catch(() => ({}))
-    logRed(`Failed to connect: ${err.error || completeRes.statusText}`)
-    process.exit(1)
-  }
-
-  return true
+} else {
+  console.log()
+  log(bold('PinchPoint CLI'))
+  log()
+  log(`Usage: ${cyan('npx pinchpoint connect')}`)
+  log()
+  log('Connects your Claude Pro/Max account to PinchPoint')
+  log('so your 5-hour usage window starts on your schedule.')
+  log()
+  if (command) process.exit(1)
 }
-
-// ─── Main ────────────────────────────────────────────────────────
-
-async function main() {
-  const command = process.argv[2]
-
-  if (!command || command === 'connect') {
-    console.log()
-    logBold('PinchPoint — Connect your Claude account')
-    console.log()
-
-    log('Looking for Claude credentials...')
-    const token = await getClaudeToken()
-    logGreen('Claude token found.')
-    console.log()
-
-    await connectToPinchPoint(token)
-
-    console.log()
-    logGreen('Your Claude account is linked!')
-    log(`Set your schedule → ${API_URL}/dashboard`)
-    console.log()
-    return
-  }
-
-  if (command === '--help' || command === '-h') {
-    console.log()
-    logBold('PinchPoint CLI')
-    console.log()
-    log('Usage: pinchpoint connect')
-    log('')
-    log('Connects your Claude Pro/Max account to PinchPoint')
-    log('so your 5-hour usage window starts on your schedule.')
-    console.log()
-    return
-  }
-
-  logRed(`Unknown command: ${command}`)
-  log('Usage: pinchpoint connect')
-  process.exit(1)
-}
-
-main().catch(e => {
-  logRed(`Error: ${e.message}`)
-  process.exit(1)
-})

@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // PinchPoint CLI — `npx pinchpoint connect`
-// Zero dependencies. Reads Claude token and sends it to PinchPoint via polling-based approval.
+// Zero dependencies. Performs OAuth flow to get a 1-year Claude token,
+// then links it to PinchPoint via polling-based approval.
 
-import { readFile } from 'fs/promises'
-import { createHash } from 'crypto'
-import { homedir } from 'os'
-import { join } from 'path'
-import { execFileSync } from 'child_process'
+import { createServer } from 'node:http'
+import { createHash, randomBytes } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 
 const API_URL = process.env.PINCHPOINT_API_URL || 'https://api.pinchpoint.dev'
 const FRONTEND_URL = process.env.PINCHPOINT_FRONTEND_URL || 'https://pinchpoint.dev'
+
+// Claude OAuth (public PKCE client — same as `claude setup-token`)
+const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
+const AUTHORIZE_URL = 'https://claude.ai/oauth/authorize'
+const TOKEN_URL = 'https://platform.claude.com/v1/oauth/token'
+const TOKEN_LIFETIME = 31536000 // 1 year in seconds
 
 // Prevent token transmission over unencrypted connections
 if (!API_URL.startsWith('https://') && !API_URL.startsWith('http://localhost')) {
@@ -31,34 +36,151 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 function openBrowser(url) {
   try {
     if (process.platform === 'win32') {
-      execFileSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' })
+      // Escape & as ^& for cmd.exe (& is a command separator)
+      execFileSync('cmd', ['/c', 'start', '', url.replace(/&/g, '^&')], { stdio: 'ignore' })
     } else {
       execFileSync(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { stdio: 'ignore' })
     }
   } catch {
-    log(`Open this URL in your browser: ${url}`)
+    log(`Open this URL in your browser: ${cyan(url)}`)
   }
 }
 
-// ─── Read Claude token ──────────────────────────────────────────
+// ─── OAuth flow (get 1-year token) ──────────────────────────────
 
-async function getClaudeToken() {
-  const credsPath = join(homedir(), '.claude', '.credentials.json')
+async function performOAuthFlow() {
+  // PKCE parameters
+  const codeVerifier = randomBytes(32).toString('base64url')
+  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url')
+  const state = randomBytes(32).toString('base64url')
 
-  try {
-    const creds = JSON.parse(await readFile(credsPath, 'utf-8'))
-    // setup-token generates long-lived tokens (~1 year, sk-ant-oat01-...)
-    const token = creds?.claudeAiOauth?.accessToken
-    if (token) return token
-  } catch {
-    // No credentials file
-  }
+  // Pre-generate PinchPoint verification code + hash (needed inside callback)
+  const verificationCode = String(Math.floor(1000 + Math.random() * 9000))
+  const codeHash = createHash('sha256').update(verificationCode).digest('hex')
 
-  log(red('No Claude credentials found.'))
-  log()
-  log(`Run ${cyan('claude setup-token')} first to generate a long-lived token,`)
-  log(`then re-run ${cyan('npx pinchpoint connect')}.`)
-  process.exit(1)
+  return new Promise((resolve, reject) => {
+    let settled = false
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url, `http://localhost:${server.address().port}`)
+
+      if (url.pathname !== '/callback') {
+        res.writeHead(404)
+        res.end()
+        return
+      }
+
+      // Verify state
+      if (url.searchParams.get('state') !== state) {
+        res.writeHead(400, { 'Content-Type': 'text/html' })
+        res.end('<html><body><p>State mismatch. Close this tab and try again.</p></body></html>')
+        return
+      }
+
+      const authCode = url.searchParams.get('code')
+      if (!authCode) {
+        res.writeHead(400, { 'Content-Type': 'text/html' })
+        res.end('<html><body><p>No authorization code received. Close this tab and try again.</p></body></html>')
+        return
+      }
+
+      try {
+        // Exchange auth code for 1-year token
+        const tokenRes = await fetch(TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grant_type: 'authorization_code',
+            code: authCode,
+            redirect_uri: `http://localhost:${server.address().port}/callback`,
+            client_id: CLIENT_ID,
+            code_verifier: codeVerifier,
+            state,
+            expires_in: TOKEN_LIFETIME,
+          }),
+        })
+
+        if (!tokenRes.ok) {
+          const errText = await tokenRes.text().catch(() => 'Unknown error')
+          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.end('<html><body><p>Failed to get token from Claude. Close this tab and try again.</p></body></html>')
+          server.close()
+          if (!settled) { settled = true; reject(new Error(`Token exchange failed (${tokenRes.status}): ${errText}`)) }
+          return
+        }
+
+        const { access_token } = await tokenRes.json()
+        if (!access_token) {
+          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.end('<html><body><p>No token received. Close this tab and try again.</p></body></html>')
+          server.close()
+          if (!settled) { settled = true; reject(new Error('Token exchange returned no access_token')) }
+          return
+        }
+
+        // Start PinchPoint connect session
+        const tokenFingerprint = createHash('sha256').update(access_token).digest('hex').slice(0, 32)
+        const startRes = await fetch(`${API_URL}/api/connect/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenFingerprint, codeHash }),
+        })
+
+        if (!startRes.ok) {
+          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.end('<html><body><p>Failed to connect to PinchPoint. Close this tab and try again.</p></body></html>')
+          server.close()
+          if (!settled) { settled = true; reject(new Error(`Connect start failed (${startRes.status})`)) }
+          return
+        }
+
+        const { sessionId } = await startRes.json()
+
+        // Redirect browser to PinchPoint connect page
+        res.writeHead(302, { Location: `${FRONTEND_URL}/connect?session=${sessionId}` })
+        res.end()
+
+        server.close()
+        if (!settled) {
+          settled = true
+          resolve({ token: access_token, sessionId, verificationCode, tokenFingerprint })
+        }
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'text/html' })
+        res.end('<html><body><p>Something went wrong. Close this tab and try again.</p></body></html>')
+        server.close()
+        if (!settled) { settled = true; reject(err) }
+      }
+    })
+
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port
+
+      // Build authorization URL
+      const authUrl = new URL(AUTHORIZE_URL)
+      authUrl.searchParams.set('code', 'true')
+      authUrl.searchParams.set('client_id', CLIENT_ID)
+      authUrl.searchParams.set('response_type', 'code')
+      authUrl.searchParams.set('redirect_uri', `http://localhost:${port}/callback`)
+      authUrl.searchParams.set('scope', 'user:inference')
+      authUrl.searchParams.set('code_challenge', codeChallenge)
+      authUrl.searchParams.set('code_challenge_method', 'S256')
+      authUrl.searchParams.set('state', state)
+
+      process.stdout.write(`\r  ${dim('Opening Claude authorization...')}\n`)
+      openBrowser(authUrl.toString())
+    })
+
+    server.on('error', (err) => {
+      if (!settled) { settled = true; reject(err) }
+    })
+
+    // 5-minute timeout for the entire OAuth flow
+    setTimeout(() => {
+      server.close()
+      if (!settled) { settled = true; reject(new Error('Authorization timed out. Run the command again.')) }
+    }, 5 * 60 * 1000)
+  })
 }
 
 // ─── Connect flow ───────────────────────────────────────────────
@@ -68,31 +190,24 @@ async function connect() {
   log(bold('PinchPoint Connect'))
   log(dim('Link your Claude credentials\n'))
 
-  // Step 1: Read token
-  process.stdout.write('  Reading Claude token... ')
-  const token = await getClaudeToken()
-  process.stdout.write(green('found') + '\n')
+  // Step 1: OAuth flow → 1-year token + PinchPoint session + browser redirect
+  const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  let i = 0
+  const spinAuth = setInterval(() => {
+    process.stdout.write(`\r  ${spinner[i++ % spinner.length]} Waiting for authorization...`)
+  }, 100)
 
-  // Step 2: Start session (include token fingerprint + verification code hash)
-  const tokenFingerprint = createHash('sha256').update(token).digest('hex').slice(0, 32)
-  const verificationCode = String(Math.floor(1000 + Math.random() * 9000))
-  const codeHash = createHash('sha256').update(verificationCode).digest('hex')
-  process.stdout.write('  Starting connect session... ')
-  const startRes = await fetch(`${API_URL}/api/connect/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tokenFingerprint, codeHash }),
-  })
-  if (!startRes.ok) {
-    process.stdout.write(red('failed') + '\n')
-    log(dim(`Server returned ${startRes.status}`))
-    process.exit(1)
+  let result
+  try {
+    result = await performOAuthFlow()
+  } finally {
+    clearInterval(spinAuth)
   }
-  const { sessionId } = await startRes.json()
-  process.stdout.write(green('ok') + '\n')
 
-  // Step 3: Open browser — show verification code
-  const approveUrl = `${FRONTEND_URL}/connect?session=${sessionId}`
+  const { token, sessionId, verificationCode, tokenFingerprint } = result
+  process.stdout.write(`\r  ${green('✓')} Authorized!                \n`)
+
+  // Step 2: Show verification code (browser is already at PinchPoint)
   log()
   log(bold('Verification code:'))
   log()
@@ -100,14 +215,9 @@ async function connect() {
   log()
   log(dim('Enter this code in the browser to confirm the connection.'))
   log()
-  log(bold('Approve in your browser:'))
-  log(cyan(approveUrl))
-  log()
-  openBrowser(approveUrl)
 
-  // Step 4: Poll for approval
-  const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-  let i = 0
+  // Step 3: Poll for approval
+  i = 0
   const deadline = Date.now() + 5 * 60 * 1000
 
   while (Date.now() < deadline) {
@@ -125,7 +235,7 @@ async function connect() {
     if (poll.status === 'approved') {
       process.stdout.write(`\r  ${green('✓')} Approved!                \n`)
 
-      // Step 5: Send token
+      // Step 4: Send token
       process.stdout.write('  Sending credentials... ')
       const completeRes = await fetch(`${API_URL}/api/connect/complete`, {
         method: 'POST',

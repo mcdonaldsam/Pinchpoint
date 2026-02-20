@@ -28,6 +28,8 @@ export class UserScheduleDO {
         case '/toggle-pause': return this.togglePause(request)
         case '/disconnect-token': return this.disconnectToken()
         case '/delete-account': return this.deleteAccount()
+        case '/test-ping': return this.testPing()
+        case '/test-ping-debug': return this.testPingDebug()
         default: return json({ error: 'Not found' }, 404)
       }
     } catch (e) {
@@ -39,20 +41,28 @@ export class UserScheduleDO {
   // ─── Alarm: fires at scheduled ping time ─────────────────────
 
   async alarm() {
+    await this.executePing()
+  }
+
+  /**
+   * Execute a ping — used by both alarm() and test-ping endpoint.
+   * Returns { step, error, ... } object for diagnostics when called from test-ping.
+   */
+  async executePing() {
     const paused = await this.state.storage.get('paused')
-    if (paused) return
+    if (paused) return { step: 'paused', error: 'Schedule is paused' }
 
     const encryptedToken = await this.state.storage.get('setupToken')
-    if (!encryptedToken) return
+    if (!encryptedToken) return { step: 'no-token', error: 'No encrypted token stored' }
 
     const userId = await this.state.storage.get('userId')
-    if (!userId) return
+    if (!userId) return { step: 'no-userid', error: 'No userId stored' }
 
     let token
     try {
       const userKey = await deriveUserKey(this.env.ENCRYPTION_KEY, userId)
       token = await decryptToken(encryptedToken, userKey)
-    } catch {
+    } catch (e) {
       // Decryption failed — token data is corrupt, auto-pause to prevent infinite loop
       await this.state.storage.put('tokenHealth', 'red')
       await this.state.storage.put('paused', true)
@@ -60,23 +70,39 @@ export class UserScheduleDO {
       if (email && this.env.RESEND_API_KEY) {
         sendTokenExpiredNotification(this.env, email)
       }
-      return // Don't reschedule — token is unrecoverable without reconnect
+      return { step: 'decrypt-failed', error: sanitizeError(e.message || String(e)) }
     }
 
     // Encrypt token for transit (separate key from storage encryption)
-    const transitPayload = await encryptToken(token, this.env.PING_ENCRYPTION_KEY)
-    token = null // Clear plaintext from memory
+    let transitPayload
+    try {
+      transitPayload = await encryptToken(token, this.env.PING_ENCRYPTION_KEY)
+      token = null // Clear plaintext from memory
+    } catch (e) {
+      token = null
+      return { step: 'transit-encrypt-failed', error: sanitizeError(e.message || String(e)),
+        hint: 'Is PING_ENCRYPTION_KEY secret set?' }
+    }
 
     // Sign the encrypted payload with HMAC (includes nonce for replay protection)
-    const timestamp = Date.now()
-    const nonce = crypto.randomUUID()
-    const signature = await signPingRequest(transitPayload, timestamp, nonce, this.env.PING_SECRET)
+    let timestamp, nonce, signature
+    try {
+      timestamp = Date.now()
+      nonce = crypto.randomUUID()
+      signature = await signPingRequest(transitPayload, timestamp, nonce, this.env.PING_SECRET)
+    } catch (e) {
+      return { step: 'hmac-sign-failed', error: sanitizeError(e.message || String(e)),
+        hint: 'Is PING_SECRET secret set?' }
+    }
 
     // Call ping service (25s timeout — under Worker's 30s CPU limit for cold starts)
     let success = false
     let rateLimitInfo = null
+    let pingError = null
     try {
-      const res = await fetch(`${this.env.PING_SERVICE_URL}/ping`, {
+      const pingUrl = `${this.env.PING_SERVICE_URL}/ping`
+      console.log(`Pinging: ${pingUrl}`)
+      const res = await fetch(pingUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ encryptedToken: transitPayload, timestamp, nonce, signature }),
@@ -85,11 +111,21 @@ export class UserScheduleDO {
       const data = await res.json()
       success = data.success === true
       rateLimitInfo = data.rateLimitInfo || null
-    } catch {
+      if (!success) pingError = data.error || `HTTP ${res.status}`
+    } catch (e) {
       success = false
+      pingError = sanitizeError(e.message || String(e))
     }
 
     await this.handlePingResult(success, rateLimitInfo)
+
+    return {
+      step: 'completed',
+      success,
+      rateLimitInfo,
+      pingError: pingError || undefined,
+      pingServiceUrl: this.env.PING_SERVICE_URL ? 'set' : 'MISSING',
+    }
   }
 
   async handlePingResult(success, rateLimitInfo) {
@@ -249,6 +285,59 @@ export class UserScheduleDO {
     return json({ ok: true })
   }
 
+  // ─── Test ping (force immediate execution) ─────────────────
+
+  async testPing() {
+    const result = await this.executePing()
+    return json(result)
+  }
+
+  // ─── Debug test ping (calls /test endpoint for stderr capture) ──
+
+  async testPingDebug() {
+    const paused = await this.state.storage.get('paused')
+    if (paused) return json({ step: 'paused', error: 'Schedule is paused' })
+
+    const encryptedToken = await this.state.storage.get('setupToken')
+    if (!encryptedToken) return json({ step: 'no-token', error: 'No encrypted token stored' })
+
+    const userId = await this.state.storage.get('userId')
+    if (!userId) return json({ step: 'no-userid', error: 'No userId stored' })
+
+    let token
+    try {
+      const userKey = await deriveUserKey(this.env.ENCRYPTION_KEY, userId)
+      token = await decryptToken(encryptedToken, userKey)
+    } catch (e) {
+      return json({ step: 'decrypt-failed', error: sanitizeError(e.message || String(e)) })
+    }
+
+    let transitPayload
+    try {
+      transitPayload = await encryptToken(token, this.env.PING_ENCRYPTION_KEY)
+      token = null
+    } catch (e) {
+      token = null
+      return json({ step: 'transit-encrypt-failed', error: sanitizeError(e.message || String(e)) })
+    }
+
+    const timestamp = Date.now()
+    const nonce = crypto.randomUUID()
+    const signature = await signPingRequest(transitPayload, timestamp, nonce, this.env.PING_SECRET)
+
+    try {
+      const res = await fetch(`${this.env.PING_SERVICE_URL}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encryptedToken: transitPayload, timestamp, nonce, signature }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      return json(await res.json())
+    } catch (e) {
+      return json({ step: 'fetch-failed', error: sanitizeError(e.message || String(e)) })
+    }
+  }
+
   // ─── Status ──────────────────────────────────────────────────
 
   async getStatus() {
@@ -261,16 +350,26 @@ export class UserScheduleDO {
     const email = await this.state.storage.get('email') || null
 
     const nextPing = calculateNextPingInfo(schedule, timezone)
+    const currentAlarm = await this.state.storage.getAlarm()
 
     return json({
       email,
       hasCredentials: !!setupToken,
+      hasUserId: !!(await this.state.storage.get('userId')),
       paused,
       lastPing,
       nextPing,
+      currentAlarm: currentAlarm ? new Date(currentAlarm).toISOString() : null,
       schedule: schedule || {},
       timezone,
       tokenHealth,
+      secrets: {
+        ENCRYPTION_KEY: this.env.ENCRYPTION_KEY ? 'set' : 'MISSING',
+        PING_ENCRYPTION_KEY: this.env.PING_ENCRYPTION_KEY ? 'set' : 'MISSING',
+        PING_SECRET: this.env.PING_SECRET ? 'set' : 'MISSING',
+        PING_SERVICE_URL: this.env.PING_SERVICE_URL ? 'set' : 'MISSING',
+        RESEND_API_KEY: this.env.RESEND_API_KEY ? 'set' : 'MISSING',
+      },
     })
   }
 }

@@ -3,6 +3,7 @@
 
 import http from 'http'
 import crypto from 'crypto'
+import { execFileSync } from 'child_process'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 const PING_SECRET = process.env.PING_SECRET
@@ -102,8 +103,9 @@ async function executePing(token) {
 
     return { success: true, rateLimitInfo }
   } catch (e) {
-    console.error('Ping failed:', sanitizeError(e.message))
-    return { success: false }
+    const errMsg = sanitizeError(e.message || String(e))
+    console.error('Ping failed:', errMsg)
+    return { success: false, error: errMsg }
   } finally {
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN
     token = null
@@ -203,6 +205,11 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: 'Transit decryption failed' })
     }
 
+    // Log token format diagnostics (prefix only — never the full token)
+    const tokenPrefix = token.substring(0, 12)
+    const tokenLen = token.length
+    console.log(`Token decrypted: prefix=${tokenPrefix}..., length=${tokenLen}`)
+
     // Queue ping execution to prevent concurrent env var overwrites
     let result
     try {
@@ -213,6 +220,63 @@ const server = http.createServer(async (req, res) => {
     }
     token = null
     return send(res, 200, result)
+  }
+
+  // Debug endpoint — runs claude CLI directly with execFileSync to capture stderr
+  if (req.method === 'POST' && req.url === '/test') {
+    let body
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      return send(res, 400, { error: 'Invalid JSON' })
+    }
+
+    const { encryptedToken, timestamp, nonce, signature } = body
+    if (!encryptedToken || !timestamp || !nonce || !signature) {
+      return send(res, 400, { error: 'Missing fields' })
+    }
+    if (typeof timestamp !== 'number' || Math.abs(Date.now() - timestamp) > 60_000) {
+      return send(res, 401, { error: 'Request expired or invalid timestamp' })
+    }
+    if (typeof signature !== 'string' || !/^[0-9a-f]{64}$/i.test(signature)) {
+      return send(res, 401, { error: 'Invalid signature format' })
+    }
+    try {
+      if (!verifySignature(encryptedToken, timestamp, nonce, signature)) {
+        return send(res, 401, { error: 'Invalid signature' })
+      }
+    } catch {
+      return send(res, 401, { error: 'Invalid signature' })
+    }
+
+    let token
+    try {
+      token = decryptTransitToken(encryptedToken)
+    } catch {
+      return send(res, 400, { error: 'Transit decryption failed' })
+    }
+
+    // Run claude CLI directly (no shell) to capture stderr
+    try {
+      const result = execFileSync('npx', ['@anthropic-ai/claude-code', '-p', 'reply pong', '--output-format', 'json'], {
+        env: { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: token },
+        timeout: 25000,
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024,
+      })
+      token = null
+      return send(res, 200, { success: true, output: result.substring(0, 500) })
+    } catch (e) {
+      token = null
+      const stderr = sanitizeError(e.stderr || '')
+      const stdout = sanitizeError(e.stdout || '')
+      return send(res, 200, {
+        success: false,
+        exitCode: e.status,
+        stderr: stderr.substring(0, 500),
+        stdout: stdout.substring(0, 500),
+      })
+    }
   }
 
   send(res, 404, { error: 'Not found' })

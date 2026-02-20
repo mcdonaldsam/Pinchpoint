@@ -64,6 +64,15 @@ export default function Dashboard() {
     await fetchStatus()
   }
 
+  async function handleTestPing() {
+    try {
+      await apiFetch('/api/test-ping', { method: 'POST' }, getToken)
+      await fetchStatus()
+    } catch {
+      await fetchStatus()
+    }
+  }
+
   async function handleTogglePause() {
     try {
       await apiFetch('/api/pause', {
@@ -151,7 +160,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <StatusPanel status={status} onTogglePause={handleTogglePause} />
+            <StatusPanel status={status} onTogglePause={handleTogglePause} onTestPing={handleTestPing} />
             <ScheduleGrid
               schedule={status.schedule}
               timezone={status.timezone}

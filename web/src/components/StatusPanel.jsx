@@ -12,7 +12,7 @@ const HEALTH_LABELS = {
   red: 'Expired — reconnect required',
 }
 
-export default function StatusPanel({ status, onTogglePause }) {
+export default function StatusPanel({ status, onTogglePause, onTestPing }) {
   const health = status.tokenHealth ? HEALTH_COLORS[status.tokenHealth] : null
   const [now, setNow] = useState(() => Date.now())
 
@@ -146,6 +146,18 @@ export default function StatusPanel({ status, onTogglePause }) {
               }`}
             >
               {status.paused ? 'Resume' : 'Pause'}
+            </button>
+          </Row>
+        )}
+
+        {/* Test ping */}
+        {status.hasCredentials && onTestPing && (
+          <Row label="Test">
+            <button
+              onClick={onTestPing}
+              className="text-sm font-medium text-stone-500 hover:text-stone-700 cursor-pointer"
+            >
+              Send test ping
             </button>
           </Row>
         )}

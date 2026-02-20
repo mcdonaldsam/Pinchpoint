@@ -103,6 +103,12 @@ export default {
       case 'GET /api/status':
         return proxyToDO(stub, '/get-status', 'GET', null, headers)
 
+      case 'POST /api/test-ping':
+        return proxyToDO(stub, '/test-ping', 'POST', null, headers)
+
+      case 'POST /api/test-ping-debug':
+        return proxyToDO(stub, '/test-ping-debug', 'POST', null, headers)
+
       case 'PUT /api/schedule': {
         const body = await parseJSON(request)
         if (!body) return json({ error: 'Invalid JSON body' }, 400, headers)

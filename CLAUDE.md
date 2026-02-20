@@ -20,7 +20,7 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 | Dashboard | Cloudflare Pages | `web/` |
 | CLI (connect only) | npm package | `3.0 Build/3.2 Host/cli/` |
 
-**Connect flow:** User runs `npx pinchpoint@0.1.0 connect` → CLI reads Claude token from `~/.claude/.credentials.json` → CLI starts polling session with token fingerprint + verification code hash → opens browser to PinchPoint → user enters 4-digit code + clicks Approve → CLI sends token → encrypted with per-user HKDF key and stored in DO.
+**Connect flow:** User runs `npx pinchpoint connect` → CLI performs its own OAuth flow with PKCE (same as `claude setup-token`) requesting a **1-year token** (`expires_in: 31536000`) → Claude consent screen in browser → user clicks Authorize → callback exchanges code for token, starts PinchPoint session, redirects browser to PinchPoint connect page → user enters 4-digit verification code + clicks Approve → CLI sends token → encrypted with per-user HKDF key and stored in DO. Token is an independent OAuth grant — does NOT touch `~/.claude/.credentials.json` or interfere with the user's regular Claude Code sessions.
 
 **Ping flow:** User sets schedule → Worker routes to user's DO → DO sets alarm → Alarm fires → DO decrypts token (HKDF-derived key), re-encrypts for transit (separate key), signs HMAC with nonce → calls Fly.io `/ping` → Fly.io verifies HMAC + nonce, decrypts transit token, runs Agent SDK `query()`, extracts `SDKRateLimitEvent` → returns `{ success, rateLimitInfo }` → DO stores result with exact `resetsAt`, fire-and-forget email, schedules next alarm.
 
@@ -83,7 +83,7 @@ Full implementation: schedule storage, alarm-based ping scheduling with DST-awar
 HMAC signature verification with nonce replay protection, transit token decryption, Agent SDK `query()` execution with `SDKRateLimitEvent` extraction, serialized ping queue (prevents env var race condition), error sanitization, crash handlers.
 
 ### CLI — BUILT (not published)
-Zero-dependency `npx pinchpoint connect`: reads token from `~/.claude/.credentials.json`, generates 4-digit verification code + SHA-256 hash binding, token fingerprint, polling-based approval flow, browser auto-open, HTTPS enforcement.
+Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE to get a 1-year token (`expires_in: 31536000`), creates independent OAuth grant (doesn't touch `~/.claude/.credentials.json`), generates 4-digit verification code + SHA-256 hash binding, token fingerprint, single-browser-flow (Claude OAuth → localhost callback → 302 redirect → PinchPoint approval page), HTTPS enforcement.
 **Local run:** `cd "3.0 Build/3.2 Host/cli" && node bin/pinchpoint.mjs connect`
 
 ### Frontend — DEPLOYED

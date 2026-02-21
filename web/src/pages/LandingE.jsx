@@ -116,7 +116,7 @@ export default function LandingE() {
                 <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
               </svg>
             </div>
-            <span className="text-[15px] font-bold tracking-tight text-white/90">PinchPoint</span>
+            <span className="text-[15px] font-bold tracking-tight text-white/90">pinchpoint</span>
           </div>
           <SignedIn>
             <Link to="/dashboard" className="text-[13px] font-medium text-white/50 hover:text-white/90 transition-colors">

@@ -40,7 +40,7 @@ export default function LandingN() {
               on your schedule.
             </h1>
             <p className="mt-6 text-[18px] font-light text-white/60 leading-relaxed max-w-lg">
-              PinchPoint automatically starts your 5-hour Claude Pro/Max
+              pinchpoint automatically starts your 5-hour Claude Pro/Max
               usage window at the time you pick. Free and takes two minutes.
             </p>
             <div className="mt-10 flex items-center gap-4">

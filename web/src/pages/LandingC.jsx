@@ -133,7 +133,7 @@ export default function LandingC() {
 
         {/* Nav */}
         <nav className="relative z-10 flex items-center justify-between max-w-3xl mx-auto px-6 py-6">
-          <span className="text-[15px] font-semibold tracking-tight text-[#171717]">PinchPoint</span>
+          <span className="text-[15px] font-semibold tracking-tight text-[#171717]">pinchpoint</span>
           <SignedIn>
             <Link
               to="/dashboard"

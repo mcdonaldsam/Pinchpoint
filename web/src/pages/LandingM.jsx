@@ -16,7 +16,7 @@ export default function LandingM() {
       <div className="landing-m min-h-screen bg-white text-neutral-900">
         {/* Nav */}
         <nav className="max-w-xl mx-auto px-6 pt-8 pb-6 flex items-center justify-between">
-          <span className="text-[15px] font-semibold tracking-tight">PinchPoint</span>
+          <span className="text-[15px] font-semibold tracking-tight">pinchpoint</span>
           <SignedIn>
             <Link to="/dashboard" className="text-[14px] text-neutral-500 hover:text-neutral-900 transition-colors">
               Dashboard
@@ -40,7 +40,7 @@ export default function LandingM() {
           </h1>
           <p className="mt-6 text-[17px] text-neutral-500 leading-relaxed max-w-md">
             Claude Pro and Max give you a 5-hour usage window that starts
-            when you send your first message. PinchPoint sends that first
+            when you send your first message. pinchpoint sends that first
             message for you, at the time you choose.
           </p>
           <div className="mt-8">
@@ -77,7 +77,7 @@ export default function LandingM() {
               { title: 'Create an account', desc: 'Sign up with your email. Free, no card required.' },
               { title: 'Connect your Claude token', desc: 'Run npx pinchpoint connect in your terminal. One command.' },
               { title: 'Set your schedule', desc: 'Pick which days and what time. 15-minute increments, any timezone.' },
-              { title: 'That\'s it', desc: 'PinchPoint pings Claude at your chosen time every day. Your window starts automatically.' },
+              { title: 'That\'s it', desc: 'pinchpoint pings Claude at your chosen time every day. Your window starts automatically.' },
             ].map((step, i) => (
               <li key={i} className="flex gap-5">
                 <span className="text-[14px] font-semibold text-neutral-300 pt-0.5 tabular-nums">

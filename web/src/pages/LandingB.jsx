@@ -111,7 +111,7 @@ export default function LandingB() {
                 </svg>
               </div>
             </div>
-            <span className="text-[17px] font-bold text-[#2D2421] tracking-tight">PinchPoint</span>
+            <span className="text-[17px] font-bold text-[#2D2421] tracking-tight">pinchpoint</span>
           </div>
 
           <SignedIn>
@@ -157,7 +157,7 @@ export default function LandingB() {
           </h1>
 
           <p className="mt-7 text-[17px] text-[#8B7E78] max-w-md mx-auto leading-relaxed">
-            Claude's 5-hour usage window starts when you first message. PinchPoint
+            Claude's 5-hour usage window starts when you first message. pinchpoint
             pings it at your chosen time, so it's already running when you sit down.
           </p>
 
@@ -199,7 +199,7 @@ export default function LandingB() {
                 <div className="text-[#999] mt-2 text-xs">
                   <div>Looking for Claude credentials...</div>
                   <div className="text-[#81C784]">Found token in ~/.claude/.credentials.json</div>
-                  <div className="mt-1">Opening PinchPoint in your browser...</div>
+                  <div className="mt-1">Opening pinchpoint in your browser...</div>
                   <div>Waiting for approval... <span className="text-[#81C784]">approved!</span></div>
                   <div className="mt-1 text-[#81C784]">Your Claude account is linked.</div>
                 </div>
@@ -224,7 +224,7 @@ export default function LandingB() {
         {/* Features */}
         <section className="relative z-10 max-w-2xl mx-auto px-6 py-16">
           <div className="bg-white/50 backdrop-blur-sm rounded-3xl border border-white/60 shadow-[0_2px_20px_rgba(0,0,0,0.04)] p-8 sm:p-10">
-            <h2 className="text-xl font-bold text-[#2D2421] mb-8">Why PinchPoint?</h2>
+            <h2 className="text-xl font-bold text-[#2D2421] mb-8">Why pinchpoint?</h2>
 
             <div className="space-y-7">
               <FeatureRow

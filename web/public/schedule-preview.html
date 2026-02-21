@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schedule Grid — All Design Concepts</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: #cdc9c0;
+      padding: 56px 24px 96px;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .wrap { max-width: 480px; margin: 0 auto; }
+
+    .pg-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      color: #1a1a1a;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    .pg-sub { font-size: 12px; color: #888; margin-bottom: 48px; }
+
+    .sec-hdr {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .block { margin-bottom: 28px; }
+    .lbl {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #7a7368;
+      margin-bottom: 10px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 2px solid #b8b3aa;
+      margin: 48px 0 40px;
+    }
+
+    /* ══════════════════════════════════════════════
+       NEW A — Terminal Heatmap
+    ══════════════════════════════════════════════ */
+    .hm {
+      background: #0c0c0c;
+      border-radius: 10px;
+      padding: 18px 16px 16px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .hm-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .hm-title { font-size: 10px; font-weight: 600; color: #39d353; letter-spacing: 0.1em; }
+    .hm-legend { display: flex; gap: 14px; }
+    .hm-leg { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #444; }
+    .hm-swatch { width: 10px; height: 8px; border-radius: 1px; }
+    .hm-grid { display: grid; grid-template-columns: 30px repeat(7, 1fr); gap: 2px; }
+    .hm-day-head { font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-align: center; padding-bottom: 4px; cursor: pointer; user-select: none; transition: color 0.1s; }
+    .hm-day-head.on { color: #39d353; } .hm-day-head.off { color: #222; }
+    .hm-day-head:hover { color: #6ae87a; }
+    .hm-hr-lbl { font-size: 8px; color: #2e2e2e; text-align: right; padding-right: 5px; display: flex; align-items: center; justify-content: flex-end; line-height: 1; }
+    .hm-cell { height: 9px; border-radius: 1px; cursor: pointer; transition: filter 0.1s; }
+    .hm-cell:hover { filter: brightness(1.5); }
+    .c-idle { background: #141414; } .c-off { background: #0f0f0f; }
+    .c-p1 { background: #39d353; } .c-w1 { background: #163d23; }
+    .c-p2 { background: #2bb544; } .c-w2 { background: #10301b; }
+    .c-p3 { background: #1f9d35; } .c-w3 { background: #0c2615; }
+    .c-p4 { background: #16852a; } .c-w4 { background: #091d10; }
+    .hm-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1a1a1a; font-size: 9px; color: #333; font-family: 'JetBrains Mono', monospace; }
+
+    /* ══════════════════════════════════════════════
+       NEW B — Timeline Strips
+    ══════════════════════════════════════════════ */
+    .strips { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    .srow { display: flex; align-items: center; padding: 9px 14px; border-bottom: 1px solid #f3f4f6; gap: 10px; min-height: 46px; cursor: pointer; transition: background 0.1s; }
+    .srow:last-child { border-bottom: none; }
+    .srow:hover { background: #fafafa; }
+    .srow.soff { opacity: 0.35; }
+    .sday { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800; color: #111827; min-width: 34px; text-transform: uppercase; }
+    .stog { width: 32px; height: 18px; border-radius: 9px; flex-shrink: 0; position: relative; transition: background 0.15s; cursor: pointer; }
+    .stog.on { background: #111827; } .stog.off { background: #e5e7eb; }
+    .stog-thumb { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: white; top: 2px; transition: left 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .stog.on .stog-thumb { left: 16px; } .stog.off .stog-thumb { left: 2px; }
+    .sbar { flex: 1; height: 6px; background: #f3f4f6; border-radius: 3px; position: relative; overflow: hidden; }
+    .sbar-seg { position: absolute; height: 100%; border-radius: 3px; }
+    .stimes { display: flex; gap: 3px; flex-shrink: 0; }
+    .schip { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; padding: 2px 5px; border-radius: 3px; line-height: 1.4; }
+    .schip.on { background: #111827; color: #fff; } .schip.off { background: #f3f4f6; color: #d1d5db; }
+
+    /* ══════════════════════════════════════════════
+       NEW C — Bold Type
+    ══════════════════════════════════════════════ */
+    .btype { background: #f2ede3; border: 2.5px solid #1a1a1a; }
+    .brow { display: flex; align-items: center; padding: 9px 14px; border-bottom: 1.5px solid #1a1a1a; gap: 8px; cursor: pointer; transition: background 0.1s; }
+    .brow:last-child { border-bottom: none; }
+    .brow:hover { background: #ece7dd; }
+    .brow.boff .bday { color: #bdb4a6; }
+    .bday { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: #1a1a1a; line-height: 1; min-width: 76px; letter-spacing: -0.03em; text-transform: uppercase; }
+    .btimes { flex: 1; display: flex; align-items: baseline; flex-wrap: wrap; }
+    .btime { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #1a1a1a; line-height: 1; }
+    .btime.bdis { color: #c9bfb2; text-decoration: line-through; }
+    .bsep { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: #e8391a; padding: 0 5px; line-height: 1; }
+    .bstat { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0; margin-left: 4px; }
+    .bstat.bon { color: #fff; background: #e8391a; padding: 2px 6px; border-radius: 2px; }
+    .bstat.boff { color: #c9bfb2; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div>
+      <div class="pg-title">Schedule Grid — 6 Concepts</div>
+      <div class="pg-sub">Click any row / day name to toggle · all 6 designs share the same state</div>
+    </div>
+
+    <!-- ══ PREVIOUS CONCEPTS ══ -->
+    <div class="sec-hdr">Previous concepts · stone / emerald theme</div>
+
+    <div class="block">
+      <div class="lbl">Old A — Compact + Expand</div>
+      <div id="old-a-wrap"></div>
+    </div>
+
+    <div class="block">
+      <div class="lbl">Old B — Inline Pills</div>
+      <div id="old-b-wrap"></div>
+    </div>
+
+    <div class="block">
+      <div class="lbl">Old C — Start Time Only</div>
+      <div id="old-c-wrap"></div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ══ NEW DIRECTIONS ══ -->
+    <div class="sec-hdr">New directions</div>
+
+    <div class="block">
+      <div class="lbl">New A — Terminal Heatmap · Dark</div>
+      <div class="hm">
+        <div class="hm-top">
+          <span class="hm-title">WEEKLY SCHEDULE</span>
+          <div class="hm-legend">
+            <div class="hm-leg"><div class="hm-swatch" style="background:#39d353"></div>ping</div>
+            <div class="hm-leg"><div class="hm-swatch" style="background:#163d23"></div>window</div>
+            <div class="hm-leg"><div class="hm-swatch" style="background:#141414"></div>idle</div>
+          </div>
+        </div>
+        <div class="hm-grid" id="hm-grid"></div>
+        <div class="hm-footer" id="hm-footer"></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="lbl">New B — Timeline Strips · Light</div>
+      <div class="strips" id="strips"></div>
+    </div>
+
+    <div class="block">
+      <div class="lbl">New C — Bold Typography · Warm</div>
+      <div class="btype" id="btype"></div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ══ PROPOSED DIRECTION ══ -->
+    <div class="sec-hdr">Proposed direction · stone / emerald · timeline bubbles</div>
+
+    <div class="block">
+      <div class="lbl">Design D — Day rows · Consistent bubbles · Rest slot</div>
+      <div id="design-d-wrap"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // Shared state — all 6 designs reflect this
+    // ─────────────────────────────────────────────────────────────
+    const DAYS  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const DAYSU = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+
+    function buildRolls(startH) {
+      return Array.from({ length: 4 }, (_, i) => ({ h: (startH + i * 5) % 24, en: true }));
+    }
+
+    const sched = [
+      { on: true,  rolls: buildRolls(6) },
+      { on: false, rolls: [] },
+      { on: true,  rolls: [{ h:6,en:true },{ h:11,en:true },{ h:16,en:false },{ h:21,en:true }] },
+      { on: true,  rolls: buildRolls(6) },
+      { on: false, rolls: [] },
+      { on: true,  rolls: [{ h:9,en:true },{ h:14,en:false },{ h:19,en:true },{ h:0,en:false }] },
+      { on: false, rolls: [] },
+    ];
+
+    const expandedA = new Set();
+
+    function fmt(h) {
+      if (h === 0) return '12am';
+      if (h === 12) return '12pm';
+      return h < 12 ? h + 'am' : (h - 12) + 'pm';
+    }
+    function fmtFull(h) {
+      if (h === 0) return '12:00 AM';
+      if (h === 12) return '12:00 PM';
+      return h < 12 ? h + ':00 AM' : (h - 12) + ':00 PM';
+    }
+
+    function clearEl(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+    function makeEl(tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
+
+    function toggleDay(i) {
+      sched[i].on = !sched[i].on;
+      sched[i].rolls = sched[i].on ? buildRolls(6) : [];
+      rebuildAll();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // OLD A — Compact + Expand  (stone / emerald)
+    // ─────────────────────────────────────────────────────────────
+    function buildOldA() {
+      const wrap = document.getElementById('old-a-wrap');
+      clearEl(wrap);
+
+      const card = makeEl('div', 'bg-white rounded-xl border border-stone-200 shadow-sm p-5');
+
+      // header
+      const hdr = makeEl('div', 'flex items-center justify-between mb-5');
+      const h2 = makeEl('h2', 'font-semibold text-stone-900 text-sm');
+      h2.textContent = 'Schedule';
+      const badge = makeEl('span', 'text-xs text-stone-400');
+      badge.textContent = 'Compact + Expand';
+      hdr.appendChild(h2);
+      hdr.appendChild(badge);
+      card.appendChild(hdr);
+
+      const rows = makeEl('div', 'space-y-1');
+
+      sched.forEach((day, i) => {
+        const rowWrap = makeEl('div');
+
+        // main row
+        const row = makeEl('div', 'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer' + (day.on ? ' hover:bg-stone-50' : ''));
+
+        // dot toggle
+        const dot = makeEl('span', 'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold transition-colors ' + (day.on ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'));
+        if (day.on) dot.textContent = '✓';
+        dot.onclick = (e) => { e.stopPropagation(); toggleDay(i); };
+        row.appendChild(dot);
+
+        const label = makeEl('span', 'w-8 text-sm font-medium ' + (day.on ? 'text-stone-900' : 'text-stone-400'));
+        label.textContent = DAYS[i];
+        row.appendChild(label);
+
+        if (day.on && day.rolls.length) {
+          const timeBadge = makeEl('span', 'text-xs border border-stone-200 rounded px-1.5 py-0.5 text-stone-700 bg-white flex-shrink-0');
+          timeBadge.textContent = fmtFull(day.rolls[0].h);
+          row.appendChild(timeBadge);
+
+          const preview = makeEl('div', 'flex items-center flex-1 gap-0.5');
+          day.rolls.forEach((r, ri) => {
+            if (ri > 0) {
+              const arr = makeEl('span', 'text-stone-300 text-xs');
+              arr.textContent = ' → ';
+              preview.appendChild(arr);
+            }
+            const t = makeEl('span', 'text-xs ' + (r.en ? 'text-stone-500' : 'text-stone-300 line-through'));
+            t.textContent = fmt(r.h);
+            preview.appendChild(t);
+          });
+          row.appendChild(preview);
+
+          const chev = makeEl('button', 'p-1 text-stone-400 hover:text-stone-600 cursor-pointer flex-shrink-0');
+          chev.textContent = expandedA.has(i) ? '↓' : '›';
+          chev.onclick = (e) => {
+            e.stopPropagation();
+            expandedA.has(i) ? expandedA.delete(i) : expandedA.add(i);
+            rebuildAll();
+          };
+          row.appendChild(chev);
+        }
+
+        rowWrap.appendChild(row);
+
+        // expanded detail
+        if (day.on && expandedA.has(i) && day.rolls.length) {
+          const detail = makeEl('div', 'ml-16 pl-3 border-l-2 border-stone-100 py-2 space-y-1.5 mb-1');
+          day.rolls.slice(1).forEach((roll, ri) => {
+            const rrow = makeEl('div', 'flex items-center gap-2' + (!roll.en ? ' opacity-40' : ''));
+            const rl = makeEl('span', 'text-xs text-stone-400 w-10');
+            rl.textContent = 'Roll ' + (ri + 2);
+            rrow.appendChild(rl);
+            const rt = makeEl('span', 'text-xs border border-stone-200 rounded px-1.5 py-0.5 text-stone-600 bg-white');
+            rt.textContent = fmtFull(roll.h);
+            rrow.appendChild(rt);
+            const mini = makeEl('span', 'inline-flex w-6 h-3.5 rounded-full relative flex-shrink-0 ' + (roll.en ? 'bg-emerald-500' : 'bg-stone-200'));
+            const thumb = makeEl('span', 'absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow');
+            thumb.style.left = roll.en ? 'auto' : '2px';
+            thumb.style.right = roll.en ? '2px' : 'auto';
+            mini.appendChild(thumb);
+            rrow.appendChild(mini);
+            detail.appendChild(rrow);
+          });
+          const lastEnabled = [...day.rolls].reverse().find(r => r.en);
+          if (lastEnabled) {
+            const br = makeEl('div', 'text-xs text-stone-400 pt-1');
+            br.textContent = 'Break from ' + fmt((lastEnabled.h + 5) % 24);
+            detail.appendChild(br);
+          }
+          rowWrap.appendChild(detail);
+        }
+
+        rows.appendChild(rowWrap);
+      });
+
+      card.appendChild(rows);
+      const foot = makeEl('div', 'mt-5');
+      const btn = makeEl('button', 'px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 cursor-pointer');
+      btn.textContent = 'Save schedule';
+      foot.appendChild(btn);
+      card.appendChild(foot);
+      wrap.appendChild(card);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // OLD B — Inline Pills  (stone / emerald)
+    // ─────────────────────────────────────────────────────────────
+    function buildOldB() {
+      const wrap = document.getElementById('old-b-wrap');
+      clearEl(wrap);
+
+      const card = makeEl('div', 'bg-white rounded-xl border border-stone-200 shadow-sm p-5');
+
+      const hdr = makeEl('div', 'flex items-center justify-between mb-5');
+      const h2 = makeEl('h2', 'font-semibold text-stone-900 text-sm');
+      h2.textContent = 'Schedule';
+      const badge = makeEl('span', 'text-xs text-stone-400');
+      badge.textContent = 'Inline Pills';
+      hdr.appendChild(h2);
+      hdr.appendChild(badge);
+      card.appendChild(hdr);
+
+      const rows = makeEl('div', 'space-y-1.5');
+
+      sched.forEach((day, i) => {
+        const row = makeEl('div', 'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer' + (day.on ? ' bg-stone-50' : ''));
+
+        // square checkbox
+        const chk = makeEl('span', 'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ' + (day.on ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'));
+        if (day.on) chk.textContent = '✓';
+        chk.onclick = (e) => { e.stopPropagation(); toggleDay(i); };
+        row.appendChild(chk);
+
+        const label = makeEl('span', 'w-8 text-sm font-medium ' + (day.on ? 'text-stone-900' : 'text-stone-400'));
+        label.textContent = DAYS[i];
+        row.appendChild(label);
+
+        if (day.on && day.rolls.length) {
+          const pills = makeEl('div', 'flex items-center gap-1 flex-1');
+          day.rolls.forEach(r => {
+            const pill = makeEl('span', 'px-2 py-0.5 rounded-full text-xs font-medium border cursor-pointer ' + (r.en ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-stone-50 text-stone-400 border-stone-200 line-through'));
+            pill.textContent = fmt(r.h);
+            pills.appendChild(pill);
+          });
+          row.appendChild(pills);
+
+          const lastEnabled = [...day.rolls].reverse().find(r => r.en);
+          if (lastEnabled) {
+            const br = makeEl('span', 'text-xs text-stone-400 whitespace-nowrap');
+            br.textContent = 'break ' + fmt((lastEnabled.h + 5) % 24);
+            row.appendChild(br);
+          }
+        }
+
+        rows.appendChild(row);
+      });
+
+      card.appendChild(rows);
+      const foot = makeEl('div', 'mt-5');
+      const btn = makeEl('button', 'px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 cursor-pointer');
+      btn.textContent = 'Save schedule';
+      foot.appendChild(btn);
+      card.appendChild(foot);
+      wrap.appendChild(card);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // OLD C — Start Time Only  (stone / emerald)
+    // ─────────────────────────────────────────────────────────────
+    function buildOldC() {
+      const wrap = document.getElementById('old-c-wrap');
+      clearEl(wrap);
+
+      const card = makeEl('div', 'bg-white rounded-xl border border-stone-200 shadow-sm p-5');
+
+      const hdr = makeEl('div', 'flex items-center justify-between mb-5');
+      const h2 = makeEl('h2', 'font-semibold text-stone-900 text-sm');
+      h2.textContent = 'Schedule';
+      const badge = makeEl('span', 'text-xs text-stone-400');
+      badge.textContent = 'Start Time Only';
+      hdr.appendChild(h2);
+      hdr.appendChild(badge);
+      card.appendChild(hdr);
+
+      const rows = makeEl('div', 'space-y-1');
+
+      sched.forEach((day, i) => {
+        const row = makeEl('div', 'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer');
+
+        const dot = makeEl('span', 'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ' + (day.on ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'));
+        if (day.on) dot.textContent = '✓';
+        dot.onclick = (e) => { e.stopPropagation(); toggleDay(i); };
+        row.appendChild(dot);
+
+        const label = makeEl('span', 'w-8 text-sm font-medium ' + (day.on ? 'text-stone-900' : 'text-stone-400'));
+        label.textContent = DAYS[i];
+        row.appendChild(label);
+
+        if (day.on && day.rolls.length) {
+          const inner = makeEl('div', 'flex items-center gap-2');
+          const fp = makeEl('span', 'text-xs text-stone-500');
+          fp.textContent = 'First pinch';
+          inner.appendChild(fp);
+          const ft = makeEl('span', 'text-xs border border-stone-200 rounded px-1.5 py-0.5 text-stone-700 bg-white');
+          ft.textContent = fmtFull(day.rolls[0].h);
+          inner.appendChild(ft);
+          row.appendChild(inner);
+
+          const sum = makeEl('span', 'text-xs text-stone-400 flex-1 text-right');
+          const last = day.rolls[day.rolls.length - 1];
+          sum.textContent = '4 pinches until ' + fmt((last.h + 5) % 24);
+          row.appendChild(sum);
+        }
+
+        rows.appendChild(row);
+      });
+
+      card.appendChild(rows);
+
+      const info = makeEl('div', 'mt-4 px-3 py-2.5 bg-stone-50 rounded-lg');
+      const infoTxt = makeEl('p', 'text-xs text-stone-500');
+      infoTxt.textContent = 'PinchPoint pings Claude 4 times per active day, each 5 hours apart. Your usage window stays active for ~20 hours with a ~4-hour overnight break.';
+      info.appendChild(infoTxt);
+      card.appendChild(info);
+
+      const foot = makeEl('div', 'mt-5');
+      const btn = makeEl('button', 'px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 cursor-pointer');
+      btn.textContent = 'Save schedule';
+      foot.appendChild(btn);
+      card.appendChild(foot);
+      wrap.appendChild(card);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // NEW A — Terminal Heatmap
+    // ─────────────────────────────────────────────────────────────
+    function hmCellClass(h, di) {
+      const day = sched[di];
+      if (!day.on) return 'c-idle';
+      for (let r = 0; r < day.rolls.length; r++) {
+        const roll = day.rolls[r];
+        if (!roll.en) continue;
+        const s = roll.h;
+        const inWin = s < 19 ? (h >= s && h < s + 5) : (h >= s || h < (s + 5) % 24);
+        if (!inWin) continue;
+        if (h === s) return ['c-p1','c-p2','c-p3','c-p4'][r];
+        return ['c-w1','c-w2','c-w3','c-w4'][r];
+      }
+      return 'c-off';
+    }
+
+    function buildHM() {
+      const grid = document.getElementById('hm-grid');
+      clearEl(grid);
+      grid.appendChild(makeEl('div'));
+      DAYSU.forEach((d, i) => {
+        const el = makeEl('div', 'hm-day-head ' + (sched[i].on ? 'on' : 'off'));
+        el.textContent = d.slice(0, 2);
+        el.onclick = () => toggleDay(i);
+        grid.appendChild(el);
+      });
+      for (let h = 0; h < 24; h++) {
+        const lbl = makeEl('div', 'hm-hr-lbl');
+        lbl.textContent = h % 3 === 0 ? fmt(h) : '';
+        grid.appendChild(lbl);
+        for (let d = 0; d < 7; d++) {
+          grid.appendChild(makeEl('div', 'hm-cell ' + hmCellClass(h, d)));
+        }
+      }
+      const activeDays = sched.filter(d => d.on).length;
+      const totalPings = sched.reduce((n, d) => n + (d.on ? d.rolls.filter(r => r.en).length : 0), 0);
+      document.getElementById('hm-footer').textContent = activeDays + ' active days · ' + totalPings + ' pings/week';
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // NEW B — Timeline Strips
+    // ─────────────────────────────────────────────────────────────
+    const SEG_COLORS = ['#111827','#374151','#6b7280','#9ca3af'];
+
+    function buildStrips() {
+      const wrap = document.getElementById('strips');
+      clearEl(wrap);
+      sched.forEach((day, i) => {
+        const row = makeEl('div', 'srow' + (day.on ? '' : ' soff'));
+        row.onclick = () => toggleDay(i);
+        const dn = makeEl('div', 'sday'); dn.textContent = DAYS[i].slice(0, 3); row.appendChild(dn);
+        const tog = makeEl('div', 'stog ' + (day.on ? 'on' : 'off'));
+        tog.appendChild(makeEl('div', 'stog-thumb'));
+        row.appendChild(tog);
+        const bar = makeEl('div', 'sbar');
+        if (day.on && day.rolls.length) {
+          day.rolls.forEach((roll, r) => {
+            if (!roll.en) return;
+            const seg = makeEl('div', 'sbar-seg');
+            seg.style.left  = (roll.h / 24 * 100) + '%';
+            seg.style.width = Math.min(5 / 24 * 100, 100 - roll.h / 24 * 100) + '%';
+            seg.style.background = SEG_COLORS[r];
+            bar.appendChild(seg);
+          });
+        }
+        row.appendChild(bar);
+        const chips = makeEl('div', 'stimes');
+        if (day.on && day.rolls.length) {
+          day.rolls.forEach(roll => {
+            const chip = makeEl('div', 'schip ' + (roll.en ? 'on' : 'off'));
+            chip.textContent = fmt(roll.h);
+            chips.appendChild(chip);
+          });
+        }
+        row.appendChild(chips);
+        wrap.appendChild(row);
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // NEW C — Bold Type
+    // ─────────────────────────────────────────────────────────────
+    function buildBtype() {
+      const wrap = document.getElementById('btype');
+      clearEl(wrap);
+      sched.forEach((day, i) => {
+        const row = makeEl('div', 'brow' + (day.on ? '' : ' boff'));
+        row.onclick = () => toggleDay(i);
+        const dn = makeEl('div', 'bday'); dn.textContent = DAYS[i].slice(0, 3); row.appendChild(dn);
+        const tl = makeEl('div', 'btimes');
+        if (day.on && day.rolls.length) {
+          day.rolls.forEach((roll, r) => {
+            if (r > 0) { const sep = makeEl('span', 'bsep'); sep.textContent = '/'; tl.appendChild(sep); }
+            const t = makeEl('span', 'btime' + (roll.en ? '' : ' bdis'));
+            t.textContent = fmt(roll.h);
+            tl.appendChild(t);
+          });
+        }
+        row.appendChild(tl);
+        const stat = makeEl('div', 'bstat ' + (day.on ? 'bon' : 'boff'));
+        stat.textContent = day.on ? 'ON' : 'OFF';
+        row.appendChild(stat);
+        wrap.appendChild(row);
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DESIGN D — Timeline Bubbles · Stone/Emerald (proposed)
+    //
+    // Each day = one row: toggle + day name + 4 fixed-width bubbles
+    // + rest slot indicator. Matches current website aesthetic.
+    // ─────────────────────────────────────────────────────────────
+    function getNextActiveRoll1(fromIdx) {
+      for (let offset = 1; offset <= 7; offset++) {
+        const d = sched[(fromIdx + offset) % 7];
+        if (d.on && d.rolls.length) {
+          const first = d.rolls.find(r => r.en);
+          if (first) return { h: first.h, daysAhead: offset };
+        }
+      }
+      return null;
+    }
+
+    function restHours(lastEnabledRoll, nextRoll1DaysAhead, nextRoll1H) {
+      const windowEnd = (lastEnabledRoll.h + 5) % 24;
+      const windowEndMins = windowEnd * 60 + (lastEnabledRoll.h >= 19 ? 0 : 0);
+      const nextStartMins = (nextRoll1DaysAhead - 1) * 1440 + nextRoll1H * 60;
+      const windowEndAbs = (lastEnabledRoll.h + 5) > 24
+        ? (lastEnabledRoll.h + 5 - 24) * 60
+        : (lastEnabledRoll.h + 5) * 60;
+      // Simple: hours from windowEnd to nextRoll1, counting across day boundary
+      let endH = (lastEnabledRoll.h + 5) % 24;
+      let gap = ((nextRoll1H + nextRoll1DaysAhead * 24) - (lastEnabledRoll.h + 5) + 168) % 168;
+      return Math.round(gap);
+    }
+
+    function buildDesignD() {
+      const wrap = document.getElementById('design-d-wrap');
+      clearEl(wrap);
+
+      const card = makeEl('div', 'bg-white rounded-xl border border-stone-200 shadow-sm p-5');
+
+      // header row
+      const hdr = makeEl('div', 'flex items-center justify-between mb-4');
+      const h2 = makeEl('h2', 'font-semibold text-stone-900 text-sm');
+      h2.textContent = 'Schedule';
+      const badge = makeEl('span', 'text-xs text-stone-400 border border-stone-200 rounded-lg px-2 py-1');
+      badge.textContent = 'Sydney (UTC+11)';
+      hdr.appendChild(h2);
+      hdr.appendChild(badge);
+      card.appendChild(hdr);
+
+      const rows = makeEl('div', 'space-y-1');
+
+      sched.forEach((day, i) => {
+        const row = makeEl('div', 'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors' + (day.on ? ' hover:bg-stone-50' : ''));
+
+        // emerald toggle
+        const tog = makeEl('button', 'relative w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer ' + (day.on ? 'bg-emerald-500' : 'bg-stone-200'));
+        const thumb = makeEl('span', 'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all');
+        thumb.style.left = day.on ? '18px' : '2px';
+        tog.appendChild(thumb);
+        tog.onclick = (e) => { e.stopPropagation(); toggleDay(i); };
+        row.appendChild(tog);
+
+        // day label
+        const label = makeEl('span', 'text-sm font-medium w-8 flex-shrink-0 ' + (day.on ? 'text-stone-800' : 'text-stone-400'));
+        label.textContent = DAYS[i];
+        row.appendChild(label);
+
+        if (day.on && day.rolls.length) {
+          // 4 consistently-sized bubbles
+          const bubbles = makeEl('div', 'flex items-center gap-2 flex-1');
+
+          day.rolls.forEach((roll, r) => {
+            const bub = makeEl('span', 'inline-flex items-center justify-center rounded-full text-xs font-semibold flex-shrink-0');
+            // Fixed size: 52px wide, 26px tall
+            bub.style.width = '52px';
+            bub.style.height = '26px';
+            bub.style.fontSize = '11px';
+
+            if (roll.en) {
+              // Solid emerald
+              bub.style.background = '#10b981';
+              bub.style.color = '#fff';
+            } else {
+              // Ghost / muted
+              bub.style.background = '#f5f4f1';
+              bub.style.color = '#a8a29e';
+              bub.style.textDecoration = 'line-through';
+            }
+
+            // Format: show hour + am/pm
+            const h = roll.h;
+            const ampm = h < 12 ? 'am' : 'pm';
+            const h12 = h % 12 || 12;
+            bub.textContent = h12 + ampm;
+
+            bubbles.appendChild(bub);
+          });
+
+          row.appendChild(bubbles);
+
+          // Rest slot — show gap to next active day's first roll
+          const lastEnabled = [...day.rolls].reverse().find(r => r.en);
+          if (lastEnabled) {
+            const next = getNextActiveRoll1(i);
+            const windowEndH = (lastEnabled.h + 5) % 24;
+
+            const restEl = makeEl('div', 'flex items-center gap-1 flex-shrink-0');
+
+            // small moon icon using unicode
+            const moon = makeEl('span', 'text-stone-300 text-xs');
+            moon.textContent = '◑';
+            restEl.appendChild(moon);
+
+            const restText = makeEl('span', 'text-xs text-stone-400 whitespace-nowrap');
+            if (next) {
+              const gapH = ((next.h + next.daysAhead * 24) - (lastEnabled.h + 5) + 168) % 168;
+              restText.textContent = 'rest ' + gapH + 'h';
+            } else {
+              restText.textContent = fmt(windowEndH) + ' rest';
+            }
+            restEl.appendChild(restText);
+            row.appendChild(restEl);
+          }
+        } else if (!day.on) {
+          // inactive: show 4 empty ghost slots
+          const ghosts = makeEl('div', 'flex items-center gap-2 flex-1');
+          for (let g = 0; g < 4; g++) {
+            const ghost = makeEl('span', 'rounded-full flex-shrink-0');
+            ghost.style.width = '52px';
+            ghost.style.height = '26px';
+            ghost.style.background = '#f0eeea';
+            ghosts.appendChild(ghost);
+          }
+          row.appendChild(ghosts);
+        }
+
+        rows.appendChild(row);
+      });
+
+      card.appendChild(rows);
+
+      const foot = makeEl('div', 'mt-5 flex items-center gap-3');
+      const btn = makeEl('button', 'px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 cursor-pointer');
+      btn.textContent = 'Save schedule';
+      foot.appendChild(btn);
+      card.appendChild(foot);
+
+      wrap.appendChild(card);
+    }
+
+    function rebuildAll() {
+      buildOldA();
+      buildOldB();
+      buildOldC();
+      buildHM();
+      buildStrips();
+      buildBtype();
+      buildDesignD();
+    }
+
+    rebuildAll();
+  </script>
+</body>
+</html>

@@ -21,7 +21,7 @@ export default function LandingO() {
             <div className="w-7 h-7 rounded-lg bg-[#3B6EE6] flex items-center justify-center">
               <span className="text-white text-[11px] font-bold">P</span>
             </div>
-            <span className="text-[15px] font-semibold">PinchPoint</span>
+            <span className="text-[15px] font-semibold">pinchpoint</span>
           </div>
           <SignedIn>
             <Link to="/dashboard" className="text-[14px] font-medium text-[#3B6EE6] hover:text-[#2B5AD6] transition-colors">
@@ -48,7 +48,7 @@ export default function LandingO() {
             </h1>
             <p className="mt-5 text-[16px] text-[#8C8C8E] leading-relaxed max-w-md">
               Claude gives you a 5-hour usage window that starts on your first
-              message. PinchPoint sends that first message for you, at the time
+              message. pinchpoint sends that first message for you, at the time
               you choose. Free.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -95,7 +95,7 @@ export default function LandingO() {
                 { num: '1', title: 'Create an account', desc: 'Sign up with your email. Free, takes ten seconds.' },
                 { num: '2', title: 'Connect your token', desc: 'Run npx pinchpoint connect in your terminal. One command, one click.' },
                 { num: '3', title: 'Pick your schedule', desc: 'Choose days and times. 15-minute increments, any timezone.' },
-                { num: '4', title: 'You\'re done', desc: 'PinchPoint pings Claude at your chosen time. Window starts automatically.' },
+                { num: '4', title: 'You\'re done', desc: 'pinchpoint pings Claude at your chosen time. Window starts automatically.' },
               ].map((step) => (
                 <div key={step.num} className="flex gap-4">
                   <div className="w-7 h-7 rounded-lg bg-[#F0EFEC] flex items-center justify-center flex-shrink-0 mt-0.5">

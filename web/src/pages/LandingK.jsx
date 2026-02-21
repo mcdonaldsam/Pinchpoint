@@ -109,7 +109,7 @@ export default function LandingK() {
             </div>
 
             <div className="flex gap-2 items-baseline text-[12px] text-[#8B8070] mb-4">
-              <span className="font-bold text-[#2A2520] not-italic">By PinchPoint Staff</span>
+              <span className="font-bold text-[#2A2520] not-italic">By pinchpoint Staff</span>
               <span>&bull;</span>
               <span>5 min read</span>
             </div>
@@ -117,7 +117,7 @@ export default function LandingK() {
             {/* Two column article */}
             <div className="sm:columns-2 gap-8 text-[16px] leading-[1.75] text-[#3D3630]">
               <p className="drop-cap mb-4">
-                PinchPoint, a new scheduling service launched this week, addresses a peculiar
+                pinchpoint, a new scheduling service launched this week, addresses a peculiar
                 problem faced by Claude Pro and Max subscribers: the five-hour usage window
                 that begins the moment you send your first message.
               </p>
@@ -156,7 +156,7 @@ export default function LandingK() {
                   { title: 'Create an Account', desc: 'Sign up with your email address. No credit card is required, and there is no trial period. The process takes approximately ten seconds.' },
                   { title: 'Connect Your Claude Token', desc: 'Run a single command in your terminal: npx pinchpoint connect. The CLI automatically detects your existing Claude credentials.' },
                   { title: 'Set Your Schedule', desc: 'Choose which days and times you\'d like the ping to fire. Each day can have a different time. Supports 15-minute increments with full timezone support.' },
-                  { title: 'Relax', desc: 'PinchPoint handles the rest. Your Claude usage window will start at your chosen time, every scheduled day, without any further action required.' },
+                  { title: 'Relax', desc: 'pinchpoint handles the rest. Your Claude usage window will start at your chosen time, every scheduled day, without any further action required.' },
                 ].map((step, i) => (
                   <div key={i}>
                     <h4 className="subhead text-[16px] font-bold text-[#2A2520] mb-1">

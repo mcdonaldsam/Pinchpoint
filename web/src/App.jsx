@@ -5,6 +5,8 @@ import Dashboard from './pages/Dashboard'
 import Connect from './pages/Connect'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
+import Security from './pages/Security'
+import SchedulePreview from './pages/SchedulePreview'
 
 function ProtectedRoute({ children }) {
   return (
@@ -26,10 +28,13 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/home" element={<Landing />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/security" element={<Security />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/connect" element={<ProtectedRoute><Connect /></ProtectedRoute>} />
+      <Route path="/schedule-preview" element={<SchedulePreview />} />
     </Routes>
   )
 }

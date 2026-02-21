@@ -6,7 +6,12 @@ export default function Landing() {
     <div className="min-h-screen bg-stone-50 text-stone-900">
       {/* Nav */}
       <nav className="flex items-center justify-between max-w-4xl mx-auto px-6 py-6">
-        <span className="text-lg font-semibold tracking-tight">PinchPoint</span>
+        <SignedIn>
+          <Link to="/dashboard" className="text-lg font-semibold tracking-tight text-stone-900">pinchpoint</Link>
+        </SignedIn>
+        <SignedOut>
+          <span className="text-lg font-semibold tracking-tight">pinchpoint</span>
+        </SignedOut>
         <SignedIn>
           <Link to="/dashboard" className="text-sm font-medium text-stone-600 hover:text-stone-900">
             Dashboard
@@ -29,8 +34,8 @@ export default function Landing() {
           <span className="text-emerald-600">exactly when you want it</span>
         </h1>
         <p className="mt-6 text-lg text-stone-500 max-w-xl mx-auto">
-          Claude Pro and Max give you a 5-hour usage window. PinchPoint starts it
-          at the time you choose, so it's already running when you sit down to work.
+          Claude Pro and Max give you a 5-hour usage window. pinchpoint starts it
+          at the time you choose, so it's optimised for your schedule, not theirs.
         </p>
         <div className="mt-10 flex gap-4 justify-center">
           <SignedIn>
@@ -54,22 +59,17 @@ export default function Landing() {
       {/* How it works */}
       <section className="max-w-3xl mx-auto px-6 py-16">
         <h2 className="text-2xl font-bold text-center mb-12">How it works</h2>
-        <div className="grid gap-6 max-w-lg mx-auto">
-          <Step n="1" title="Sign up" desc="Create an account — takes 10 seconds." />
-          <Step n="2" title="Connect Claude" desc="Run one command in your terminal to link your Claude account." />
-          <Step n="3" title="Set your schedule" desc="Pick which days and times you want your window to start." />
-          <Step n="4" title="That's it" desc="Every day at your time, we send a tiny ping. Your window is running before you open your laptop." />
-        </div>
+        <Steps />
       </section>
 
       {/* Details */}
       <section className="max-w-3xl mx-auto px-6 py-16 border-t border-stone-200">
         <div className="grid gap-12 sm:grid-cols-2">
           <div>
-            <h3 className="font-semibold text-lg mb-2">Exact window timing</h3>
+            <h3 className="font-semibold text-lg mb-2">Per-day scheduling</h3>
             <p className="text-stone-500">
-              We capture the exact reset time from Claude's API, so your dashboard
-              shows precisely when your window ends — no guessing.
+              Different time on Monday than Thursday? Skip weekends entirely?
+              Set each day independently with 15-minute precision.
             </p>
           </div>
           <div>
@@ -80,10 +80,10 @@ export default function Landing() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-lg mb-2">Per-day scheduling</h3>
+            <h3 className="font-semibold text-lg mb-2">End-to-end encryption</h3>
             <p className="text-stone-500">
-              Different time on Monday than Thursday? Skip weekends entirely?
-              Set each day independently with 15-minute precision.
+              AES-256 encryption with per-user derived keys. Your token is never
+              stored in plaintext — re-encrypted on every request.
             </p>
           </div>
           <div>
@@ -102,23 +102,52 @@ export default function Landing() {
           <Link to="/privacy" className="hover:text-stone-600">Privacy</Link>
           <span>·</span>
           <Link to="/terms" className="hover:text-stone-600">Terms</Link>
+          <span>·</span>
+          <Link to="/security" className="hover:text-stone-600">Security</Link>
         </div>
-        Your Claude token is encrypted at rest. PinchPoint is not affiliated with Anthropic.
+        pinchpoint is not affiliated with Anthropic.
       </footer>
     </div>
   )
 }
 
-function Step({ n, title, desc }) {
+const STEPS = [
+  { title: 'Create an account', desc: 'Sign up in seconds. No credit card, no trial period.' },
+  { title: 'Link your Claude token', desc: 'Run npx pinchpoint connect in your terminal. One command, one click.' },
+  { title: 'Set your schedule', desc: 'Choose which days and times. Each day can be different.' },
+  { title: 'Done', desc: 'We ping Claude at your time. Your window starts automatically, every day.' },
+]
+
+function Steps() {
   return (
-    <div className="flex gap-4">
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold">
-        {n}
-      </div>
-      <div>
-        <h3 className="font-semibold">{title}</h3>
-        <p className="text-stone-500 text-sm mt-1">{desc}</p>
-      </div>
+    <div className="max-w-sm mx-auto">
+      {STEPS.map((step, i) => {
+        const isLast = i === STEPS.length - 1
+        return (
+          <div key={i} className="flex gap-5">
+            {/* Timeline column */}
+            <div className="flex flex-col items-center">
+              <div
+                className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
+                  isLast
+                    ? 'bg-stone-900 text-white'
+                    : 'border-2 border-stone-300 text-stone-400'
+                }`}
+              >
+                {i + 1}
+              </div>
+              {!isLast && (
+                <div className="w-px flex-1 bg-stone-200 my-1" />
+              )}
+            </div>
+            {/* Content */}
+            <div className={isLast ? 'pt-1 pb-0' : 'pt-1 pb-8'}>
+              <h3 className="font-semibold text-stone-900 leading-snug">{step.title}</h3>
+              <p className="text-stone-500 text-sm mt-1 leading-relaxed">{step.desc}</p>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

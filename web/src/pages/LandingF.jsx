@@ -63,7 +63,7 @@ export default function LandingF() {
         <nav className="relative z-10 flex items-center justify-between max-w-4xl mx-auto px-6 py-6">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-[#7C8C6E]" />
-            <span className="text-[15px] font-semibold tracking-tight">PinchPoint</span>
+            <span className="text-[15px] font-semibold tracking-tight">pinchpoint</span>
           </div>
           <SignedIn>
             <Link to="/dashboard" className="text-[13px] font-medium text-[#7C8C6E] hover:text-[#2C3028] transition-colors">
@@ -92,7 +92,7 @@ export default function LandingF() {
             </h1>
             <p className="mt-6 text-[16px] text-[#8A8578] leading-relaxed max-w-md">
               Claude's 5-hour usage window begins when you first message.
-              PinchPoint pings at your chosen time, so it's running before you sit down.
+              pinchpoint pings at your chosen time, so it's running before you sit down.
             </p>
 
             <div className="mt-10 flex items-center gap-4">

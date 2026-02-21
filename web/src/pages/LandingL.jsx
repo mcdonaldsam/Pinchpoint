@@ -141,7 +141,7 @@ export default function LandingL() {
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6B9D] to-[#C84B8A] flex items-center justify-center shadow-[0_2px_8px_rgba(255,107,157,0.3),inset_0_1px_0_rgba(255,255,255,0.3)]">
               <span className="text-white text-[11px] font-bold">P</span>
             </div>
-            <span className="display text-[17px] font-semibold text-[#4A3560]">PinchPoint</span>
+            <span className="display text-[17px] font-semibold text-[#4A3560]">pinchpoint</span>
           </div>
           <SignedIn>
             <Link to="/dashboard" className="text-[13px] font-bold text-[#9B8AB8] hover:text-[#6B4F8A] transition-colors">

@@ -12,7 +12,14 @@ const HEALTH_LABELS = {
   red: 'Expired — reconnect required',
 }
 
-export default function StatusPanel({ status, onTogglePause, onPinchNow, pinching }) {
+function formatTime12(time24) {
+  const [h, m] = time24.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
+export default function StatusPanel({ status }) {
   const health = status.tokenHealth ? HEALTH_COLORS[status.tokenHealth] : null
   const [now, setNow] = useState(() => Date.now())
 
@@ -47,19 +54,6 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
     })
   }
 
-  function formatTzAbbr(tz) {
-    try {
-      return new Intl.DateTimeFormat('en-US', {
-        timeZone: tz,
-        timeZoneName: 'short',
-      }).formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || tz
-    } catch {
-      return tz
-    }
-  }
-
-  const tzAbbr = formatTzAbbr(status.timezone)
-
   function formatRelative(iso) {
     const diff = now - new Date(iso).getTime()
     if (diff < 60_000) return 'just now'
@@ -76,11 +70,11 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
           <p className="text-sm text-stone-500 mb-1">
             {status.lastPing.exact ? 'Resets in' : 'Resets in (estimated)'}
           </p>
-          <p className="text-3xl font-bold text-emerald-600 tabular-nums">
+          <p className="text-5xl font-bold text-emerald-600 tabular-nums tracking-tight">
             {status.lastPing.exact ? '' : '~'}{formatCountdown(remaining)}
           </p>
           <p className="text-sm text-stone-400 mt-1">
-            at {formatTime(status.lastPing.windowEnds, status.timezone)} {tzAbbr}
+            at {formatTime(status.lastPing.windowEnds, status.timezone)}
           </p>
         </div>
       )}
@@ -90,7 +84,7 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
         <div className="p-6 text-center">
           <p className="text-sm text-stone-400 mb-1">Window ended</p>
           <p className="text-2xl font-bold text-stone-400">
-            {formatTime(status.lastPing.windowEnds, status.timezone)} {tzAbbr}
+            {formatTime(status.lastPing.windowEnds, status.timezone)}
           </p>
         </div>
       )}
@@ -105,18 +99,9 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
 
       {/* Status rows */}
       <div className="p-6 space-y-4">
-        {/* Connection */}
-        <Row label="Connection">
-          {status.hasCredentials ? (
-            <span className="text-emerald-600 font-medium text-sm">Connected</span>
-          ) : (
-            <span className="text-stone-400 text-sm">Not connected</span>
-          )}
-        </Row>
-
-        {/* Token health */}
-        {status.hasCredentials && health && (
-          <Row label="Token health">
+        {/* Token warning — only shown when unhealthy */}
+        {status.hasCredentials && health && status.tokenHealth !== 'green' && (
+          <Row label="Token status">
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${health.bg} ${health.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${health.dot}`} />
               {HEALTH_LABELS[status.tokenHealth]}
@@ -124,12 +109,12 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
           </Row>
         )}
 
-        {/* Pinched at */}
+        {/* Last pinch */}
         {status.lastPing && (
-          <Row label="Pinched at">
+          <Row label="Last pinch">
             <span className={`text-sm ${status.lastPing.success ? 'text-emerald-600' : 'text-red-600'}`}>
               {status.lastPing.success ? '' : 'Failed — '}
-              {formatTime(status.lastPing.time, status.timezone)} {tzAbbr}
+              {formatTime(status.lastPing.time, status.timezone)}
               <span className="text-stone-400 ml-1">({formatRelative(status.lastPing.time)})</span>
             </span>
           </Row>
@@ -139,38 +124,18 @@ export default function StatusPanel({ status, onTogglePause, onPinchNow, pinchin
         {status.nextPing && !status.paused && (
           <Row label="Next pinch">
             <span className="text-sm text-stone-600">
-              {capitalize(status.nextPing.day)} at {status.nextPing.time} {tzAbbr}
+              {capitalize(status.nextPing.day)} at {formatTime12(status.nextPing.time)}
             </span>
           </Row>
         )}
 
-        {/* Pause toggle */}
-        {status.hasCredentials && (
+        {/* Paused indicator */}
+        {status.hasCredentials && status.paused && (
           <Row label="Schedule">
-            <button
-              onClick={onTogglePause}
-              className={`text-sm font-medium cursor-pointer ${
-                status.paused ? 'text-emerald-600 hover:text-emerald-700' : 'text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              {status.paused ? 'Resume' : 'Pause'}
-            </button>
+            <span className="text-xs text-amber-600 font-medium">Paused</span>
           </Row>
         )}
 
-        {/* Pinch now — manual trigger, works on mobile */}
-        {status.hasCredentials && onPinchNow && (
-          <div className="pt-2">
-            <button
-              onClick={onPinchNow}
-              disabled={pinching}
-              className="w-full py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-stone-100 text-stone-600 hover:bg-stone-200 active:bg-stone-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {pinching && <Spinner />}
-              {pinching ? 'Pinching...' : 'Pinch now'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

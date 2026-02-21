@@ -16,13 +16,13 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 |-----------|----------|------|
 | API + routing | Cloudflare Worker | `3.0 Build/3.2 Host/worker/` |
 | Per-user scheduling | Durable Objects (alarms) | `3.0 Build/3.2 Host/worker/src/user-schedule-do.js` |
-| Ping execution | Fly.io (container) | `3.0 Build/3.2 Host/ping-service/` |
-| Dashboard | Cloudflare Pages | `web/` |
+| Ping execution | Fly.io (Node 22, 1GB RAM, IAD region) | `3.0 Build/3.2 Host/ping-service/` |
+| Frontend | Cloudflare Workers (static assets) | `web/` |
 | CLI (connect only) | npm package | `3.0 Build/3.2 Host/cli/` |
 
 **Connect flow:** User runs `npx pinchpoint connect` → CLI performs its own OAuth flow with PKCE (same as `claude setup-token`) requesting a **1-year token** (`expires_in: 31536000`) → Claude consent screen in browser → user clicks Authorize → callback exchanges code for token, starts PinchPoint session, redirects browser to PinchPoint connect page → user enters 4-digit verification code + clicks Approve → CLI sends token → encrypted with per-user HKDF key and stored in DO. Token is an independent OAuth grant — does NOT touch `~/.claude/.credentials.json` or interfere with the user's regular Claude Code sessions.
 
-**Ping flow:** User sets schedule → Worker routes to user's DO → DO sets alarm → Alarm fires → DO decrypts token (HKDF-derived key), re-encrypts for transit (separate key), signs HMAC with nonce → calls Fly.io `/ping` → Fly.io verifies HMAC + nonce, decrypts transit token, runs Agent SDK `query()`, extracts `SDKRateLimitEvent` → returns `{ success, rateLimitInfo }` → DO stores result with exact `resetsAt`, fire-and-forget email, schedules next alarm.
+**Ping flow:** User sets schedule (up to 4 rolls/day, 5h apart) → Worker routes to user's DO → DO sets alarm → Alarm fires → DO decrypts token (HKDF-derived key), re-encrypts for transit (separate key), signs HMAC with nonce → calls Fly.io `/ping` → Fly.io verifies HMAC + nonce, decrypts transit token, runs Agent SDK `query()`, extracts `SDKRateLimitEvent` → returns `{ success, rateLimitInfo }` → DO stores result with exact `resetsAt`, schedules next alarm.
 
 **Why DOs over KV + cron:** KV `list()` caps at 1,000 keys per call, is eventually consistent (60s propagation), and scanning all users every minute hits the 30-second CPU limit. DOs give per-user isolation, strong consistency, and alarm-based scheduling with no fan-out.
 
@@ -30,32 +30,133 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 
 ## Tech Stack
 
-- **Cloudflare Workers + Durable Objects + KV + Pages** — API, per-user scheduling, connect sessions, frontend
-- **Fly.io** — container runtime for Agent SDK (free tier: 3 shared VMs)
-- **`@anthropic-ai/claude-agent-sdk`** — the ONLY way to ping Claude Pro/Max (see spike results)
-- **React 19 + Vite + Tailwind CSS** — frontend
-- **Clerk** — auth (JWT verification with JWKS caching + `kid` matching)
-- **Resend** — email notifications (fire-and-forget, timezone-aware)
-- **Node.js CLI** — `npx pinchpoint connect` (zero dependencies)
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| Cloudflare Workers + DO + KV | wrangler ^4.0.0 | API, per-user scheduling, connect sessions |
+| Fly.io | Node 22-slim, 1 shared CPU, 1GB RAM | Container runtime for Agent SDK |
+| `@anthropic-ai/claude-agent-sdk` | ^0.2.47 | The ONLY way to ping Claude Pro/Max |
+| React | 19.2.0 | Frontend UI framework |
+| React Router | 7.13.0 | Client-side routing |
+| Vite | 7.3.1 | Build tool + dev server |
+| Tailwind CSS | 4.2.0 (via `@tailwindcss/vite`) | Utility-first CSS |
+| Clerk | `@clerk/clerk-react` 5.61.0 | Auth (JWT + JWKS caching + `kid` matching) |
+| lucide-react | 0.575.0 | Icons |
+| Resend | API | Email notifications (disconnect/revocation only) |
+| Node.js CLI | Zero dependencies | `npx pinchpoint connect` |
 
-**Cost:** $0/month — Cloudflare Free plan includes Durable Objects (100K req/day, 5GB storage), Fly.io free tier covers ping service, Clerk + Resend free tiers cover auth + email
+**Cost:** $0/month — Cloudflare Free plan includes Durable Objects (100K req/day, 5GB storage), Fly.io free tier covers ping service (auto-stop to 0 machines when idle), Clerk + Resend free tiers cover auth + email
 
 ---
 
 ## API Routes
 
+### Worker (Cloudflare)
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/health` | None | Health check |
-| POST | `/api/connect/start` | None | CLI starts a connect session (KV, 5min TTL) |
+| GET | `/api/health` | None | Health check → `{"ok":true}` |
+| POST | `/api/connect/start` | None | CLI starts connect session (KV, 5min TTL) |
 | GET | `/api/connect/poll` | None | CLI polls for approval status |
-| POST | `/api/connect/approve` | Clerk | Dashboard user approves session |
+| POST | `/api/connect/approve` | Clerk | Dashboard user approves session (code verification) |
 | POST | `/api/connect/complete` | None | CLI sends token after approval |
 | GET | `/api/status` | Clerk | Get user status from DO |
-| PUT | `/api/schedule` | Clerk | Update schedule in DO |
+| POST | `/api/test-ping` | Clerk | Force immediate ping execution (diagnostics) |
+| POST | `/api/test-ping-debug` | Clerk | Call ping service `/test` endpoint (stderr capture) |
+| PUT | `/api/schedule` | Clerk | Update schedule + timezone in DO |
 | POST | `/api/pause` | Clerk | Toggle pause in DO |
 | POST | `/api/disconnect` | Clerk | Remove token + stop pings, keep account |
 | DELETE | `/api/account` | Clerk | Delete account + all data |
+
+### Ping Service (Fly.io)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/health` | None | Liveness check for Fly.io health probes |
+| POST | `/ping` | HMAC + nonce | Production ping — Agent SDK `query()`, extracts `SDKRateLimitEvent` |
+| POST | `/test` | HMAC + nonce | Debug ping — runs Claude CLI `npx @anthropic-ai/claude-code`, captures stderr |
+
+---
+
+## File Structure
+
+```
+PinchPoint/
+├── CLAUDE.md                                    # This file
+├── README.md
+├── .gitignore
+├── .env.secrets                                 # All secrets (gitignored via .env.*)
+│
+├── 2.0 Research/
+│   ├── Claude Code Internal API.md              # How Claude Code communicates with Anthropic
+│   ├── Cloud Automation Options.md              # Evaluated 5 approaches to cloud pinging
+│   ├── OAuth Flow & ToS Analysis.md             # PKCE flow details + ToS risk levels
+│   └── Token Lifecycle & Refresh Strategy.md    # Token types, refresh mechanics, 1-year decision
+│
+├── 3.0 Build/
+│   ├── 3.1 Design/
+│   │   ├── Implementation Plan.md               # v3 architecture blueprint + phased roadmap
+│   │   ├── Security Hardening Plan.md           # 7-phase security plan (all complete)
+│   │   ├── Strategy & Monetization.md           # Product strategy, TAM, monetization paths
+│   │   ├── Multi-Roll Schedule & Email Cleanup.md  # 4-roll/day design (implemented)
+│   │   └── Potential API Features.md            # Tiered feature ideas from SDK data
+│   │
+│   └── 3.2 Host/
+│       ├── cli/
+│       │   ├── package.json                     # name: pinchpoint, bin: pinchpoint
+│       │   └── bin/pinchpoint.mjs               # Zero-dep CLI: OAuth PKCE + connect flow
+│       │
+│       ├── ping-service/
+│       │   ├── package.json                     # deps: @anthropic-ai/claude-agent-sdk ^0.2.47
+│       │   ├── index.mjs                        # /health, /ping, /test endpoints
+│       │   ├── Dockerfile                       # node:22-slim, non-root, pre-cached CLI
+│       │   └── fly.toml                         # app: pinchpoint-ping, region: iad, auto-stop
+│       │
+│       ├── spike/                               # Proof-of-concept tests (completed)
+│       │   ├── test-agent-sdk.mjs
+│       │   ├── test-cli-ping.mjs
+│       │   ├── test-ping.mjs
+│       │   └── test-refresh.mjs
+│       │
+│       └── worker/
+│           ├── package.json                     # devDeps: wrangler ^4.0.0 (no prod deps)
+│           ├── wrangler.toml                    # DO binding, KV binding, vars, cron
+│           └── src/
+│               ├── index.js                     # Router, CORS, rate limiting, connect flow, DO proxy
+│               ├── auth.js                      # Clerk JWT verification (JWKS cache, kid rotation)
+│               ├── crypto.js                    # HKDF key derivation, AES-256-GCM, HMAC signing
+│               ├── email.js                     # Resend: disconnect/revocation notification only
+│               ├── user-schedule-do.js          # Durable Object: schedule, alarms, ping execution
+│               └── validate.js                  # Schedule validation, multi-roll normalization
+│
+├── 4.0 Testing/                                 # Screenshot archive of landing page designs
+│
+├── web/
+│   ├── index.html                               # SPA entry point + meta tags
+│   ├── vite.config.js                           # React + Tailwind CSS plugins
+│   ├── wrangler.toml                            # Static assets, SPA 404→index.html
+│   ├── package.json                             # React 19, Clerk, lucide, Tailwind 4, Vite 7
+│   ├── public/
+│   │   └── _headers                             # Security headers (CSP, HSTS, etc.)
+│   └── src/
+│       ├── main.jsx                             # Bootstrap: StrictMode + ClerkProvider + BrowserRouter
+│       ├── App.jsx                              # Routes + ProtectedRoute auth guard
+│       ├── index.css                            # Tailwind @import + scrollbar customization
+│       ├── lib/
+│       │   └── api.js                           # apiFetch(path, options, getToken) helper
+│       ├── components/
+│       │   ├── ScheduleGrid.jsx                 # Main interactive heatmap editor (790 lines)
+│       │   ├── ScheduleGridA/B/C.jsx            # Experimental grid variants (not in production)
+│       │   └── StatusPanel.jsx                  # Countdown timer + health + last/next ping
+│       └── pages/
+│           ├── Landing.jsx                      # Production homepage (routed at / and /home)
+│           ├── LandingA.jsx–LandingO.jsx        # 15 design variants (not routed)
+│           ├── Dashboard.jsx                    # Authenticated: status, schedule, pause, disconnect
+│           ├── Connect.jsx                      # OAuth approval: code entry or CLI instructions
+│           ├── Privacy.jsx                      # Privacy policy (static)
+│           ├── Terms.jsx                        # Terms of service (static)
+│           ├── Security.jsx                     # Security documentation (static, detailed)
+│           └── SchedulePreview.jsx              # Internal: side-by-side grid design comparison
+```
 
 ---
 
@@ -67,32 +168,54 @@ Split architecture — required because the Claude Agent SDK spawns `claude` as 
 |-----------|-----|--------|
 | Worker API | `https://api.pinchpoint.dev` | Live (`/api/health` → `{"ok":true}`) |
 | Frontend | `https://pinchpoint.dev` | Live |
-| Ping Service | `https://pinchpoint-ping.fly.dev` | Live (Fly.io, app: `pinchpoint-ping`) |
+| Ping Service | `https://pinchpoint-ping.fly.dev` | Live (Fly.io, app: `pinchpoint-ping`, auto-stop/start) |
 | CLI | `3.0 Build/3.2 Host/cli/` | Built, not yet published to npm |
 
 ### Worker API — DEPLOYED
-All routes implemented and wired: health, connect (start/poll/approve/complete), status, schedule, pause, disconnect, account delete. Includes CORS, rate limiting, input validation, Clerk JWT auth with JWKS caching + `kid` rotation, and DO proxy helper.
+All routes implemented and wired: health, connect (start/poll/approve/complete), status, test-ping, test-ping-debug, schedule, pause, disconnect, account delete. Includes CORS (locked to `FRONTEND_URL`), KV-based rate limiting, input validation with multi-roll normalization, Clerk JWT auth with JWKS caching + `kid` rotation, and DO proxy helper.
 
-**Files:** `index.js`, `auth.js`, `crypto.js`, `validate.js`, `email.js`
-**Config:** `CLERK_FRONTEND_API = "clerk.pinchpoint.dev"` in wrangler.toml
+**Files:** `index.js` (router + connect flow), `auth.js` (JWT), `crypto.js` (HKDF + AES + HMAC), `validate.js` (schedule validation + multi-roll), `email.js` (disconnect notification)
+**Config:** `CLERK_FRONTEND_API = "clerk.pinchpoint.dev"`, `FRONTEND_URL = "https://pinchpoint.dev"` in wrangler.toml
+**Cron:** `0 */6 * * *` (maintenance, every 6 hours — currently unused)
 
 ### Durable Object (UserScheduleDO) — DEPLOYED
-Full implementation: schedule storage, alarm-based ping scheduling with DST-aware time calculation, token encrypt/decrypt with HKDF per-user keys, ping service calls with transit encryption + HMAC + nonce, retry logic (2min), token health state machine (green/yellow/red), auto-pause at 5 failures, fire-and-forget email notifications, disconnect + account deletion.
+Full implementation: multi-roll schedule storage (4 pings/day, 5h apart per day), alarm-based scheduling with DST-aware time calculation (±1h retry on DST boundaries), midnight-wrap detection for late-night rolls, token encrypt/decrypt with HKDF per-user keys (salt="pinchpoint-v1"), ping service calls with transit encryption + HMAC + nonce (25s timeout), retry logic (2min), token health state machine (green/yellow/red), auto-pause at 5 consecutive failures, disconnect email notification, account deletion.
+
+**DO Routes:** `/get-status`, `/set-schedule`, `/set-token`, `/toggle-pause`, `/disconnect-token`, `/delete-account`, `/test-ping`, `/test-ping-debug`
 
 ### Ping Service (Fly.io) — DEPLOYED
-HMAC signature verification with nonce replay protection, transit token decryption, Agent SDK `query()` execution with `SDKRateLimitEvent` extraction, serialized ping queue (prevents env var race condition), error sanitization, crash handlers.
+Three endpoints: `/health` (liveness), `/ping` (production), `/test` (debug). HMAC signature verification with timing-safe comparison + nonce replay protection (120s retention window). Transit token decryption (AES-256-GCM). Agent SDK `query()` execution with `SDKRateLimitEvent` extraction. Serialized ping queue (max 5 waiters, prevents `CLAUDE_CODE_OAUTH_TOKEN` env var race condition). Error sanitization + crash handlers that clear env vars.
+
+**Fly.io config:** `auto_stop_machines: stop`, `auto_start_machines: true`, `min_machines_running: 0` (scales to zero when idle, cold-starts on request). Health check every 30s at `/health`.
 
 ### CLI — BUILT (not published)
-Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE to get a 1-year token (`expires_in: 31536000`), creates independent OAuth grant (doesn't touch `~/.claude/.credentials.json`), generates 4-digit verification code + SHA-256 hash binding, token fingerprint, single-browser-flow (Claude OAuth → localhost callback → 302 redirect → PinchPoint approval page), HTTPS enforcement.
+Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE to get a 1-year token (`expires_in: 31536000`), creates independent OAuth grant (doesn't touch `~/.claude/.credentials.json`), generates 4-digit verification code + SHA-256 hash binding, token fingerprint (first 32 chars of SHA-256), single-browser-flow (Claude OAuth → localhost callback → 302 redirect → PinchPoint approval page), HTTPS enforcement. Polls every 2s with 5min timeout.
+**OAuth:** CLIENT_ID `9d1c250a-e61b-44d9-88ed-5944d1962f5e`, scope `user:inference`, authorize via `claude.ai/oauth/authorize`, token exchange via `platform.claude.com/v1/oauth/token`
 **Local run:** `cd "3.0 Build/3.2 Host/cli" && node bin/pinchpoint.mjs connect`
 
 ### Frontend — DEPLOYED
-- **Landing page** — multiple design variants (A through O) in `web/src/pages/`, default at `/`
-- **Dashboard** — status panel, schedule grid (timezone-aware, 15-min increments), pause toggle, disconnect with revocation instructions, account deletion
-- **Connect page** — approval flow for CLI sessions
-- **Privacy / Terms** — static pages
-- **Auth** — Clerk `SignedIn`/`SignedOut` guards, auto-redirect to dashboard when signed in
-- **API client** — `apiFetch` helper with Clerk token injection
+
+**Routes:**
+| Path | Component | Auth | Description |
+|------|-----------|------|-------------|
+| `/` | Home | None | Redirects to `/dashboard` if signed in, else shows Landing |
+| `/home` | Landing | None | Public landing (always accessible, even when signed in) |
+| `/dashboard` | Dashboard | Protected | Main app: status panel, schedule grid, controls |
+| `/connect` | Connect | Protected | OAuth approval with code entry (or CLI instructions) |
+| `/privacy` | Privacy | None | Privacy policy |
+| `/terms` | Terms | None | Terms of service |
+| `/security` | Security | None | Detailed security documentation |
+| `/schedule-preview` | SchedulePreview | None | Internal: side-by-side grid design comparison |
+
+**Key components:**
+- **ScheduleGrid** (790 lines) — Interactive 24h×7d heatmap with drag-to-move rolls, tap-to-edit time, double-tap-to-toggle enabled/disabled, auto-save (800ms debounce), timezone picker (145 timezones), multi-roll support (4 pinches/day)
+- **StatusPanel** — Live countdown timer (1s tick), health badge (green/yellow/red), last ping + relative time, next ping day/time, paused indicator
+- **Dashboard** — Fetches `/api/status`, save schedule via `/api/schedule`, manual "Pinch now" via `/api/test-ping`, pause toggle, disconnect with revocation instructions, account deletion with 2-step confirmation
+- **Connect** — Two modes: with `?session=` param (code entry + approve) or without (shows CLI instructions)
+- **Landing** — Hero, 4-step how-it-works, feature cards, footer with legal links
+- **Landing variants** — 15 designs (A-O), NOT routed in production, for design selection
+
+**Styling:** Tailwind utility classes throughout, stone/emerald/amber/red color palette, responsive (sm:grid-cols-2), no custom CSS components
 
 ### Auth & DNS — FULLY CONFIGURED
 
@@ -110,15 +233,10 @@ Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE 
 - `clk2._domainkey.pinchpoint.dev` → `dkim2.vd7o1m9v1by4.clerk.services`
 - `api.pinchpoint.dev` → Worker
 
-**Worker secrets** (all set via `wrangler secret put`):
-- `CLERK_SECRET_KEY`, `RESEND_API_KEY`, `PING_SERVICE_URL`, `PING_SECRET`, `ENCRYPTION_KEY`, `PING_ENCRYPTION_KEY`
-
-**Ping service secrets** (Fly.io): `PING_SECRET`, `PING_ENCRYPTION_KEY` (match Worker)
-
 ### Remaining Work
-- **Choose landing page design** — 15 variants (A-O) created, need to pick one and apply consistent styling to Dashboard/Connect/Privacy/Terms
+- **Choose landing page design** — 15 variants (A-O) created, need to pick one and apply consistent styling
 - **npm publish** — Publish CLI package to npm registry (`npx pinchpoint connect`)
-- **End-to-end smoke test** — Verify first scheduled ping fires correctly and email is sent
+- **End-to-end smoke test** — Verify first scheduled ping fires correctly
 
 ---
 
@@ -153,38 +271,51 @@ The runtime `SDKRateLimitEvent` is emitted with exact rate limit data:
 ```
 userId              → string (Clerk user ID)
 email               → string
-schedule            → { monday: "08:00" | null, ... }
-timezone            → string (IANA)
+schedule            → { monday: null | [{time: "HH:MM", enabled: bool}, ...], ... }
+                      (4 rolls per day, 15-min increments, null = day off)
+timezone            → string (IANA, default: "UTC")
 paused              → boolean
-setupToken          → string (AES-256-GCM encrypted)
-lastPing            → { time, success, windowEnds, exact }
-consecutiveFailures → number
+setupToken          → string (AES-256-GCM encrypted, format: {ivHex}:{ciphertextHex})
+lastPing            → { time: ISO8601, success: bool, windowEnds: ISO8601|null, exact: bool }
+consecutiveFailures → number (0–5+)
 tokenHealth         → "green" | "yellow" | "red"
 ```
 
 ### KV (ephemeral connect sessions only)
 ```
-connect:{uuid} → { status, userId?, email?, ... }  (TTL: 5 min)
+connect:{uuid} → { status, userId?, email?, tokenFingerprint, codeHash, ... }  (TTL: 5 min)
+rate:{action}:{ip} → { count, resetAt }  (TTL: 60s, eventual consistency)
 ```
 
 ### Token Health States
 - **green:** Pings succeeding normally
-- **yellow:** 3+ consecutive failures — user emailed warning
-- **red:** 5+ consecutive failures — auto-paused, user emailed "token expired"
+- **yellow:** 3+ consecutive failures — retrying every 2 min
+- **red:** 5+ consecutive failures — auto-paused (stops retrying)
+
+### Multi-Roll Schedule Model
+Each day can have up to 4 "rolls" (pings), spaced 5 hours apart:
+- Roll 1 is the anchor time (user-set, mandatory if day is enabled)
+- Rolls 2-4 cascade at +5h intervals
+- Each roll has `{time: "HH:MM", enabled: bool}` — disabled rolls are skipped but not deleted
+- Midnight-wrap: if roll 2+ has an earlier time than roll 1, it belongs to the next calendar day
+- `validate.js` enforces exactly 4 rolls per day, 15-min increments, roll 1 must be enabled
+- `normalizeSchedule()` converts old string format to new rolls array format
 
 ---
 
 ## Security
 
-- **Token encryption (at rest):** AES-256-GCM via Web Crypto API, per-user HKDF-derived keys (master key + userId), per-token random IV
-- **Token encryption (transit):** Separate AES-256-GCM key for DO→ping service communication, re-encrypted per request
-- **Ping service auth:** HMAC-SHA256 signing over `payload:timestamp:nonce`, 60s freshness window, nonce-based replay protection
+- **Token encryption (at rest):** AES-256-GCM via Web Crypto API, per-user HKDF-derived keys (master key + userId, salt="pinchpoint-v1"), random 12-byte IV per token
+- **Token encryption (transit):** Separate AES-256-GCM key for DO→ping service communication, re-encrypted per request with fresh IV
+- **Ping service auth:** HMAC-SHA256 signing over `payload:timestamp:nonce`, 60s freshness window, nonce-based replay protection (120s retention), timing-safe comparison
+- **Ping concurrency:** Serialized queue (max 5 waiters) prevents `CLAUDE_CODE_OAUTH_TOKEN` env var race condition
 - **CORS:** Locked to `env.FRONTEND_URL` (not `*`)
-- **JWT auth:** JWKS cached 1 hour, `kid` matching with rotation fallback, `aud`/`azp`/`nbf` checks
-- **Input validation:** Schedule days, times (15-min increments), timezone all validated
+- **JWT auth:** JWKS cached 1 hour, `kid` matching with rotation fallback (cache bust + refetch), `exp`/`nbf`/`iss`/`aud`/`azp` checks
+- **Input validation:** Schedule days, times (15-min increments), rolls (exactly 4/day, roll 1 enabled), timezone all validated
+- **Rate limiting:** KV-based per IP — `/connect/start` 10/60s, `/connect/poll` 60/60s, `/connect/complete` 10/60s, connect approval max 3 code attempts/session
 - **Connect sessions:** Unguessable UUID, 5-minute TTL, one-time use, approval requires Clerk auth, 4-digit verification code challenge (SHA-256 hash binding), mandatory token fingerprint
-- **Error sanitization:** Token patterns stripped from all log output, crash handlers clear env vars
-- **Headers:** CSP, HSTS, X-Frame-Options DENY, Permissions-Policy, X-Content-Type-Options nosniff
+- **Error sanitization:** Token patterns (`sk-ant-*`) stripped from all log output, crash handlers clear env vars
+- **Headers:** CSP, HSTS, X-Frame-Options DENY, Permissions-Policy, X-Content-Type-Options nosniff (via `public/_headers`)
 - **Key isolation:** 3 separate secrets — `ENCRYPTION_KEY` (at-rest, Worker only), `PING_ENCRYPTION_KEY` (transit, Worker + ping), `PING_SECRET` (HMAC, Worker + ping)
 - **Disconnect flow:** Token deletion from DO, alarm cancellation, revocation instructions via email + in-app
 
@@ -242,27 +373,45 @@ PINCHPOINT_API_URL=http://localhost:8787 pinchpoint connect
 
 ---
 
-## Build Plans
+## Build Plans & Research
 
 All major implementation plans and design documents MUST be saved as `.md` files in `3.0 Build/3.1 Design/`. When starting any significant feature, phase, or architectural change, write a plan document there before coding.
 
-**Directory:** `3.0 Build/3.1 Design/`
+### Design Documents (`3.0 Build/3.1 Design/`)
 
-Existing plans:
-- `Implementation Plan.md` — original v1 implementation plan
-- `Security Hardening Plan.md` — token lifecycle hardening, per-user key derivation, transit encryption, injection audit
+| Document | Status | Description |
+|----------|--------|-------------|
+| `Implementation Plan.md` | Complete | v3 architecture blueprint, phased roadmap (Phases 1-5) |
+| `Security Hardening Plan.md` | Complete (all 7 phases) | Token lifecycle threats, HKDF, transit encryption, replay protection, error sanitization |
+| `Strategy & Monetization.md` | Strategic framework | Product strategy, TAM analysis, 5 monetization paths, Tier 1-3 feature ideas |
+| `Multi-Roll Schedule & Email Cleanup.md` | Implemented | 4-roll/day design, midnight-wrap, cascade logic, email scope reduction |
+| `Potential API Features.md` | Research complete | SDK data already received but ignored, 10 tiered feature ideas, priority ranking |
+
+### Research Documents (`2.0 Research/`)
+
+| Document | Description |
+|----------|-------------|
+| `OAuth Flow & ToS Analysis.md` | PKCE flow details, 3 risk levels (HIGH/MODERATE/LOW), ToS compliance, enforcement precedents |
+| `Claude Code Internal API.md` | How Claude Code communicates with Anthropic, OAuth token rejection by public API, SDK routing |
+| `Cloud Automation Options.md` | 5 approaches evaluated (browser, Docker+CLI, GitHub Actions, Agent SDK, serverless Puppeteer) |
+| `Token Lifecycle & Refresh Strategy.md` | Token types (8h vs 1-year), refresh mechanics, multi-device independence, decision: CLI does own OAuth |
 
 ---
 
 ## Secrets (never commit)
 
 Worker secrets (via `wrangler secret put`):
-- `CLERK_SECRET_KEY` — Clerk backend key
+- `CLERK_SECRET_KEY` — Clerk backend key (for fetching user email)
+- `CLERK_PUBLISHABLE_KEY` — Clerk publishable key (JWT `azp` validation)
 - `RESEND_API_KEY` — Resend email API key
 - `PING_SERVICE_URL` — Fly.io service URL
 - `PING_SECRET` — HMAC shared secret for request signing
 - `ENCRYPTION_KEY` — AES-256 master key for at-rest encryption (hex-encoded, 32 bytes)
 - `PING_ENCRYPTION_KEY` — AES-256 key for transit encryption (hex-encoded, 32 bytes)
+
+Worker public vars (wrangler.toml `[vars]`):
+- `CLERK_FRONTEND_API` = `"clerk.pinchpoint.dev"` — JWKS domain + JWT issuer
+- `FRONTEND_URL` = `"https://pinchpoint.dev"` — CORS origin
 
 Ping service env vars (`fly secrets set`):
 - `PING_SECRET` — must match Worker's value
@@ -271,6 +420,19 @@ Ping service env vars (`fly secrets set`):
 Frontend env vars (`.env`):
 - `VITE_CLERK_PUBLISHABLE_KEY` — Clerk publishable key
 - `VITE_API_URL` — Worker API URL
+
+---
+
+## Worker Module Map
+
+| File | Exports | Key Functions |
+|------|---------|---------------|
+| `index.js` | `UserScheduleDO` (re-export) | `rateLimit()`, `corsHeaders()`, `json()`, `parseJSON()`, `proxyToDO()`, `fetchClerkEmail()`, `connectStart()`, `connectPoll()`, `connectApprove()`, `connectComplete()` |
+| `auth.js` | `verifyClerkSession()` | `fetchJWKS()`, `base64UrlDecode()` — JWKS cached 1hr with cache-bust on `kid` miss |
+| `crypto.js` | `deriveUserKey()`, `encryptToken()`, `decryptToken()`, `hashToken()`, `signPingRequest()` | `hexToBuffer()`, `bufferToHex()` |
+| `email.js` | `sendDisconnectNotification()` | Fire-and-forget POST to Resend API (disconnect/revocation only) |
+| `validate.js` | `buildDefaultRolls()`, `normalizeSchedule()`, `validateSchedule()`, `validateTimezone()` | Constants: `VALID_DAYS`, `TIME_REGEX` |
+| `user-schedule-do.js` | `UserScheduleDO` class | `alarm()`, `executePing()`, `handlePingResult()`, `getLocalTime()`, `calculateNextPingTime()`, `buildTargetDate()`, `calculateNextPingInfo()` |
 
 ---
 

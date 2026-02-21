@@ -145,7 +145,7 @@ export default function LandingA() {
         </h1>
 
         <p className="mt-8 text-[15px] text-[#777] max-w-lg leading-relaxed font-mono">
-          Claude Pro and Max give you a 5-hour usage window. PinchPoint starts it
+          Claude Pro and Max give you a 5-hour usage window. pinchpoint starts it
           at the time you choose — your window is already running when you sit down to work.
         </p>
 

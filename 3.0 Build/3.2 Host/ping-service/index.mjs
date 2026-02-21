@@ -94,14 +94,17 @@ async function executePing(token) {
       },
     })
 
-    let rateLimitInfo = null
+    // Capture five_hour rate_limit_event — provides exact resetsAt for the session window.
+    // Note: Anthropic API rejects OAuth tokens ("OAuth authentication is currently not supported")
+    // so we cannot fetch rate limit headers directly. usedPercentage is unavailable.
+    let fiveHourInfo = null
     for await (const msg of conversation) {
-      if (msg.type === 'rate_limit_event' && msg.rate_limit_info) {
-        rateLimitInfo = msg.rate_limit_info
+      if (msg.type === 'rate_limit_event' && msg.rate_limit_info?.rateLimitType === 'five_hour') {
+        fiveHourInfo = msg.rate_limit_info
       }
     }
 
-    return { success: true, rateLimitInfo }
+    return { success: true, rateLimitInfo: fiveHourInfo, rateLimits: fiveHourInfo ? { five_hour: fiveHourInfo } : {} }
   } catch (e) {
     const errMsg = sanitizeError(e.message || String(e))
     console.error('Ping failed:', errMsg)

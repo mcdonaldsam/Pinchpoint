@@ -129,7 +129,7 @@ export default function LandingI() {
 
               <p className="text-[16px] text-[#666] leading-[1.7] max-w-md">
                 Claude's 5-hour usage window starts when you first message.
-                PinchPoint sends an automatic ping at your chosen time, so
+                pinchpoint sends an automatic ping at your chosen time, so
                 the window is running before you sit down.
               </p>
 

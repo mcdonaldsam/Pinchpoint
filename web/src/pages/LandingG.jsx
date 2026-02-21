@@ -145,7 +145,7 @@ export default function LandingG() {
             </button>
             <div className="w-px h-5 bg-[#808080] ml-1" />
             <div className="h-6 px-2 border border-t-[#404040] border-l-[#404040] border-r-white border-b-white bg-[#C0C0C0] flex items-center">
-              <span className="text-[11px]">📌 PinchPoint</span>
+              <span className="text-[11px]">📌 pinchpoint</span>
             </div>
           </div>
           <div className="h-6 px-2 border-2 border-t-[#404040] border-l-[#404040] border-r-white border-b-white flex items-center gap-2">
@@ -180,7 +180,7 @@ export default function LandingG() {
 
           {/* Main window */}
           <div className={`max-w-2xl mx-auto mt-4 sm:mt-8 ${bootDone ? 'boot-in' : 'opacity-0'}`}>
-            <WindowFrame title="PinchPoint — Welcome" variant="active">
+            <WindowFrame title="pinchpoint — Welcome" variant="active">
               {/* Menu bar */}
               <div className="bg-[#C0C0C0] px-1 py-[2px] flex gap-3 border-b border-[#808080]">
                 <span className="text-[11px] hover:bg-[#000080] hover:text-white px-1 cursor-pointer"><u>F</u>ile</span>
@@ -207,7 +207,7 @@ export default function LandingG() {
                 <div className="h-px bg-[#C0C0C0] mb-5" />
 
                 <p className="text-[13px] text-[#333] leading-relaxed mb-6">
-                  The 5-hour usage window begins when you first message Claude. PinchPoint
+                  The 5-hour usage window begins when you first message Claude. pinchpoint
                   sends an automatic ping at your chosen time, so the window is already running
                   when you sit down to work.
                 </p>
@@ -253,7 +253,7 @@ export default function LandingG() {
                 <div className="flex items-start gap-4 mb-6">
                   <div className="text-3xl flex-shrink-0">🧙</div>
                   <div>
-                    <h2 className="text-[16px] font-bold text-[#000080]">PinchPoint Setup Wizard</h2>
+                    <h2 className="text-[16px] font-bold text-[#000080]">pinchpoint Setup Wizard</h2>
                     <p className="text-[12px] text-[#808080] mt-0.5">Follow these steps to configure your schedule</p>
                   </div>
                 </div>
@@ -372,11 +372,11 @@ export default function LandingG() {
             <WindowFrame title="C:\WINDOWS\system32\cmd.exe">
               <div className="bg-black p-4 mono text-[12px] text-[#C0C0C0] leading-relaxed">
                 <p>Microsoft Windows [Version 10.0.26200]</p>
-                <p className="text-[#808080]">(c) PinchPoint Corporation. All rights reserved.</p>
+                <p className="text-[#808080]">(c) pinchpoint Corporation. All rights reserved.</p>
                 <p className="mt-3">C:\Users\you{'>'} <span className="text-[#00FF00]">npx pinchpoint connect</span></p>
                 <p className="mt-2 text-white">  Looking for Claude credentials...</p>
                 <p className="text-white">  Found token in ~/.claude/.credentials.json</p>
-                <p className="mt-1 text-white">  Opening PinchPoint in your browser...</p>
+                <p className="mt-1 text-white">  Opening pinchpoint in your browser...</p>
                 <p className="text-[#FFFF00]">  Waiting for approval... </p>
                 <p className="text-[#00FF00]">  ✓ Connected!</p>
                 <p className="mt-2 text-white">  Set your schedule → https://pinchpoint.dev/dashboard</p>

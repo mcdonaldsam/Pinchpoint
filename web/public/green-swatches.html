@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PinchPoint Green Swatches</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fafaf9; padding: 32px; }
+  h1 { font-size: 18px; color: #1c1917; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; }
+  .swatch { background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 16px; }
+  .swatch-title { font-size: 13px; font-weight: 600; color: #44403c; margin-bottom: 4px; }
+  .swatch-hex { font-size: 11px; color: #a8a29e; margin-bottom: 12px; font-family: monospace; }
+  .bars { display: flex; flex-direction: column; gap: 2px; }
+  .bar { height: 14px; border-radius: 2px; }
+  .current { border: 2px solid #f59e0b; border-radius: 14px; }
+</style>
+</head>
+<body>
+
+<h1>PinchPoint — Green Palette Options</h1>
+<p style="font-size: 13px; color: #78716c; margin-bottom: 24px;">Each swatch shows: ping (dark), window (light), idle (grey). Current production has a gold border.</p>
+
+<div class="grid" id="swatches"></div>
+
+<script>
+const options = [
+  {
+    name: '1. Current (Emerald 600/200)',
+    ping: '#059669', window: '#a7f3d0', idle: '#f0efed',
+    hex: 'ping #059669 · window #a7f3d0',
+    current: true
+  },
+  {
+    name: '2. Emerald 500/100',
+    ping: '#10b981', window: '#d1fae5', idle: '#f0efed',
+    hex: 'ping #10b981 · window #d1fae5'
+  },
+  {
+    name: '3. Green 600/200',
+    ping: '#16a34a', window: '#bbf7d0', idle: '#f0efed',
+    hex: 'ping #16a34a · window #bbf7d0'
+  },
+  {
+    name: '4. Green 500/100',
+    ping: '#22c55e', window: '#dcfce7', idle: '#f0efed',
+    hex: 'ping #22c55e · window #dcfce7'
+  },
+  {
+    name: '5. Midpoint (Green×Emerald)',
+    ping: '#0e9d5a', window: '#b0f0d0', idle: '#f0efed',
+    hex: 'ping #0e9d5a · window #b0f0d0'
+  },
+  {
+    name: '6. Teal 600/200',
+    ping: '#0d9488', window: '#99f6e4', idle: '#f0efed',
+    hex: 'ping #0d9488 · window #99f6e4'
+  },
+  {
+    name: '7. Lime 600/200',
+    ping: '#65a30d', window: '#d9f99d', idle: '#f0efed',
+    hex: 'ping #65a30d · window #d9f99d'
+  },
+  {
+    name: '8. Jade (custom)',
+    ping: '#0f8a5f', window: '#a3e4c4', idle: '#f0efed',
+    hex: 'ping #0f8a5f · window #a3e4c4'
+  },
+  {
+    name: '9. Malachite (custom)',
+    ping: '#1aab6b', window: '#8ee8be', idle: '#f0efed',
+    hex: 'ping #1aab6b · window #8ee8be'
+  },
+  {
+    name: '10. Sea Green (custom)',
+    ping: '#2e8b57', window: '#a0d6b4', idle: '#f0efed',
+    hex: 'ping #2e8b57 · window #a0d6b4'
+  },
+];
+
+// Simulated schedule pattern: 5h window (ping + 4 window), then idle, repeat
+// Pattern for one day column: idle, idle, ping, window, window, window, window, idle, idle, ping, window, window, window, window, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle
+function buildColumn(ping, window, idle) {
+  const pattern = [
+    idle, idle, idle, idle, idle,         // 1am-5am rest
+    ping, window, window, window, window, // 6am pinch + window
+    idle,                                 // 11am rest
+    ping, window, window, window, window, // 12pm pinch + window
+    idle, idle,                           // 5pm-6pm rest
+    ping, window, window, window, window, // 7pm pinch + window
+    idle,                                 // 12am rest
+  ];
+  return pattern;
+}
+
+const container = document.getElementById('swatches');
+
+options.forEach(opt => {
+  const col = buildColumn(opt.ping, opt.window, opt.idle);
+
+  const div = document.createElement('div');
+  div.className = 'swatch' + (opt.current ? ' current' : '');
+
+  const title = document.createElement('div');
+  title.className = 'swatch-title';
+  title.textContent = opt.name + (opt.current ? ' ← current' : '');
+
+  const hex = document.createElement('div');
+  hex.className = 'swatch-hex';
+  hex.textContent = opt.hex;
+
+  // Build a mini 7-day × 24-hour grid
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+  grid.style.gap = '2px';
+
+  for (let hour = 0; hour < 24; hour++) {
+    for (let day = 0; day < 7; day++) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      // Vary pattern slightly per day: offset by day index, weekends are off
+      if (day >= 5) {
+        bar.style.backgroundColor = '#fafaf9'; // off
+      } else {
+        const shifted = (hour + day * 2) % 24;
+        const colors = buildColumn(opt.ping, opt.window, opt.idle);
+        bar.style.backgroundColor = colors[shifted] || opt.idle;
+      }
+      grid.appendChild(bar);
+    }
+  }
+
+  div.appendChild(title);
+  div.appendChild(hex);
+  div.appendChild(grid);
+  container.appendChild(div);
+});
+</script>
+
+</body>
+</html>

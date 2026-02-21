@@ -2,7 +2,8 @@
 // Handles schedule storage, alarm-based ping scheduling, retry logic, token health
 
 import { decryptToken, encryptToken, signPingRequest, deriveUserKey } from './crypto.js'
-import { sendPingNotification, sendTokenWarningNotification, sendTokenExpiredNotification, sendDisconnectNotification } from './email.js'
+import { sendDisconnectNotification } from './email.js'
+import { normalizeSchedule } from './validate.js'
 
 // Strip tokens from error messages to prevent leaks in logs
 const TOKEN_PATTERN = /sk-ant-\w{3,6}-[A-Za-z0-9_-]{10,}/g
@@ -66,10 +67,6 @@ export class UserScheduleDO {
       // Decryption failed — token data is corrupt, auto-pause to prevent infinite loop
       await this.state.storage.put('tokenHealth', 'red')
       await this.state.storage.put('paused', true)
-      const email = await this.state.storage.get('email')
-      if (email && this.env.RESEND_API_KEY) {
-        sendTokenExpiredNotification(this.env, email)
-      }
       return { step: 'decrypt-failed', error: sanitizeError(e.message || String(e)) }
     }
 
@@ -98,6 +95,7 @@ export class UserScheduleDO {
     // Call ping service (25s timeout — under Worker's 30s CPU limit for cold starts)
     let success = false
     let rateLimitInfo = null
+    let rateLimits = {}
     let pingError = null
     try {
       const pingUrl = `${this.env.PING_SERVICE_URL}/ping`
@@ -111,18 +109,20 @@ export class UserScheduleDO {
       const data = await res.json()
       success = data.success === true
       rateLimitInfo = data.rateLimitInfo || null
+      rateLimits = data.rateLimits || {}
       if (!success) pingError = data.error || `HTTP ${res.status}`
     } catch (e) {
       success = false
       pingError = sanitizeError(e.message || String(e))
     }
 
-    await this.handlePingResult(success, rateLimitInfo)
+    await this.handlePingResult(success, rateLimitInfo, rateLimits)
 
     return {
       step: 'completed',
       success,
       rateLimitInfo,
+      rateLimits,
       pingError: pingError || undefined,
       pingServiceUrl: this.env.PING_SERVICE_URL ? 'set' : 'MISSING',
     }
@@ -131,8 +131,6 @@ export class UserScheduleDO {
   async handlePingResult(success, rateLimitInfo) {
     const now = new Date()
     const consecutiveFailures = (await this.state.storage.get('consecutiveFailures')) || 0
-    const email = await this.state.storage.get('email')
-    const timezone = await this.state.storage.get('timezone') || 'UTC'
 
     if (success) {
       // Use exact resetsAt from SDK if available, otherwise estimate now + 5h
@@ -148,11 +146,6 @@ export class UserScheduleDO {
       })
       await this.state.storage.put('consecutiveFailures', 0)
       await this.state.storage.put('tokenHealth', 'green')
-
-      // Fire-and-forget email
-      if (email && this.env.RESEND_API_KEY) {
-        sendPingNotification(this.env, email, windowEnds, timezone, !!rateLimitInfo?.resetsAt)
-      }
 
       await this.scheduleNextAlarm()
       return
@@ -171,15 +164,8 @@ export class UserScheduleDO {
       // Auto-pause — stop retrying
       await this.state.storage.put('paused', true)
       await this.state.storage.put('tokenHealth', 'red')
-      if (email && this.env.RESEND_API_KEY) {
-        sendTokenExpiredNotification(this.env, email)
-      }
     } else if (newFailures >= 3) {
-      // Warning state — email user, keep retrying
       await this.state.storage.put('tokenHealth', 'yellow')
-      if (newFailures === 3 && email && this.env.RESEND_API_KEY) {
-        sendTokenWarningNotification(this.env, email)
-      }
       // Retry in 2 minutes
       await this.state.storage.setAlarm(Date.now() + 2 * 60 * 1000)
     } else {
@@ -360,7 +346,7 @@ export class UserScheduleDO {
       lastPing,
       nextPing,
       currentAlarm: currentAlarm ? new Date(currentAlarm).toISOString() : null,
-      schedule: schedule || {},
+      schedule: normalizeSchedule(schedule || {}),
       timezone,
       tokenHealth,
       secrets: {
@@ -394,26 +380,43 @@ function getLocalTime(date, timezone) {
 
 /**
  * Calculate the next ping time as a Date (for alarm scheduling).
- * Scans forward up to 7 days from now.
+ * Supports multi-roll schedules. Scans from offset -1 to +6 days
+ * (offset -1 catches midnight-wrapped rolls from the previous day).
  */
 function calculateNextPingTime(schedule, timezone) {
   if (!schedule) return null
+  const normalized = normalizeSchedule(schedule)
   const now = new Date()
+  let soonest = null
 
-  for (let offset = 0; offset < 7; offset++) {
+  for (let offset = -1; offset <= 6; offset++) {
     const checkDate = new Date(now.getTime() + offset * 86400_000)
     const { weekday } = getLocalTime(checkDate, timezone)
-    const scheduledTime = schedule[weekday]
-    if (!scheduledTime) continue
+    const dayRolls = normalized[weekday]
+    if (!dayRolls) continue
 
-    const [hours, minutes] = scheduledTime.split(':').map(Number)
+    for (let i = 0; i < dayRolls.length; i++) {
+      const roll = dayRolls[i]
+      if (!roll.enabled) continue
 
-    // Build target date: start from checkDate at midnight in user's timezone
-    // then add hours/minutes. Use a search approach to handle DST correctly.
-    const target = buildTargetDate(checkDate, hours, minutes, timezone)
-    if (target && target > now) return target
+      const [h, m] = roll.time.split(':').map(Number)
+
+      // Midnight wrap: if this roll's time is earlier than roll 1's time,
+      // it belongs to the next calendar day
+      let target
+      if (i > 0 && roll.time < dayRolls[0].time) {
+        const nextDay = new Date(checkDate.getTime() + 86400_000)
+        target = buildTargetDate(nextDay, h, m, timezone)
+      } else {
+        target = buildTargetDate(checkDate, h, m, timezone)
+      }
+
+      if (target && target > now) {
+        if (!soonest || target < soonest) soonest = target
+      }
+    }
   }
-  return null
+  return soonest
 }
 
 /**
@@ -464,26 +467,44 @@ function buildTargetDate(referenceDate, hours, minutes, timezone) {
 }
 
 /**
- * Calculate next ping for display (returns { day, time, date } or null).
- * Scans forward up to 7 days.
+ * Calculate next ping for display.
+ * Returns { day, time, rollIndex, date } or null.
  */
 function calculateNextPingInfo(schedule, timezone) {
   if (!schedule) return null
+  const normalized = normalizeSchedule(schedule)
   const now = new Date()
+  let best = null
 
-  for (let offset = 0; offset < 7; offset++) {
+  for (let offset = -1; offset <= 6; offset++) {
     const checkDate = new Date(now.getTime() + offset * 86400_000)
     const { weekday } = getLocalTime(checkDate, timezone)
-    const scheduledTime = schedule[weekday]
-    if (!scheduledTime) continue
+    const dayRolls = normalized[weekday]
+    if (!dayRolls) continue
 
-    const [hours, minutes] = scheduledTime.split(':').map(Number)
-    const target = buildTargetDate(checkDate, hours, minutes, timezone)
-    if (target && target > now) {
-      return { day: weekday, time: scheduledTime, date: target.toISOString() }
+    for (let i = 0; i < dayRolls.length; i++) {
+      const roll = dayRolls[i]
+      if (!roll.enabled) continue
+
+      const [h, m] = roll.time.split(':').map(Number)
+
+      let target
+      if (i > 0 && roll.time < dayRolls[0].time) {
+        const nextDay = new Date(checkDate.getTime() + 86400_000)
+        target = buildTargetDate(nextDay, h, m, timezone)
+      } else {
+        target = buildTargetDate(checkDate, h, m, timezone)
+      }
+
+      if (target && target > now) {
+        if (!best || target < best.date) {
+          best = { day: weekday, time: roll.time, rollIndex: i, date: target }
+        }
+      }
     }
   }
-  return null
+
+  return best ? { day: best.day, time: best.time, rollIndex: best.rollIndex, date: best.date.toISOString() } : null
 }
 
 // ─── Response helper ─────────────────────────────────────────────

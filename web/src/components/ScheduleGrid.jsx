@@ -1,16 +1,17 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Info } from 'lucide-react'
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_LABELS = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' }
 
-// Generate time options in 15-min increments
 const TIME_OPTIONS = []
 for (let h = 0; h < 24; h++) {
   for (const m of ['00', '15', '30', '45']) {
-    const hh = String(h).padStart(2, '0')
-    TIME_OPTIONS.push(`${hh}:${m}`)
+    TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:${m}`)
   }
 }
+
+const HOUR_LABELS = { 0: '12am', 3: '3am', 6: '6am', 9: '9am', 12: '12pm', 15: '3pm', 18: '6pm', 21: '9pm' }
 
 function formatTime12(time24) {
   const [h, m] = time24.split(':').map(Number)
@@ -19,9 +20,41 @@ function formatTime12(time24) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
 }
 
-// Industry-standard timezone list (Windows/Microsoft format)
-// Used by Google Calendar, Outlook, Slack, etc.
-// Source: https://github.com/dmfilipenko/timezones.json
+function timeToMinutes(time) {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minutesToTime(mins) {
+  const wrapped = ((mins % 1440) + 1440) % 1440
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`
+}
+
+function buildDefaultRolls(startTime) {
+  const [h, m] = startTime.split(':').map(Number)
+  return Array.from({ length: 4 }, (_, i) => {
+    const totalMin = (h * 60 + m + i * 300) % 1440
+    return {
+      time: `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`,
+      enabled: true,
+    }
+  })
+}
+
+function normalizeSchedule(schedule) {
+  if (!schedule) return {}
+  const out = {}
+  for (const [day, value] of Object.entries(schedule)) {
+    if (value === null) out[day] = null
+    else if (typeof value === 'string') out[day] = buildDefaultRolls(value)
+    else if (Array.isArray(value)) out[day] = value
+    else out[day] = null
+  }
+  return out
+}
+
+// ─── Timezone helpers ─────────────────────────────────────────
+
 const TIMEZONE_LIST = [
   { tz: 'Pacific/Midway',                    label: '(UTC-11:00) Midway Island, Samoa' },
   { tz: 'Pacific/Honolulu',                  label: '(UTC-10:00) Hawaii' },
@@ -107,27 +140,18 @@ const TIMEZONE_LIST = [
   { tz: 'Pacific/Auckland',                  label: '(UTC+12:00) Auckland, Wellington' },
   { tz: 'Pacific/Fiji',                      label: '(UTC+12:00) Fiji' },
   { tz: 'Asia/Magadan',                      label: '(UTC+12:00) Magadan' },
-  { tz: 'Pacific/Tongatapu',                 label: '(UTC+13:00) Nuku\'alofa' },
+  { tz: 'Pacific/Tongatapu',                 label: "(UTC+13:00) Nuku'alofa" },
   { tz: 'Pacific/Apia',                      label: '(UTC+13:00) Samoa' },
 ]
 
-// Map IANA timezone to its list entry (or best match by offset)
 function findTzEntry(tz) {
-  // Direct match
   const direct = TIMEZONE_LIST.find(t => t.tz === tz)
   if (direct) return direct
-  // Fallback: match by UTC offset
   try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      timeZoneName: 'shortOffset',
-    }).formatToParts(new Date())
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(new Date())
     const offset = parts.find(p => p.type === 'timeZoneName')?.value || ''
     return TIMEZONE_LIST.find(t => {
-      const tParts = new Intl.DateTimeFormat('en-US', {
-        timeZone: t.tz,
-        timeZoneName: 'shortOffset',
-      }).formatToParts(new Date())
+      const tParts = new Intl.DateTimeFormat('en-US', { timeZone: t.tz, timeZoneName: 'shortOffset' }).formatToParts(new Date())
       return tParts.find(p => p.type === 'timeZoneName')?.value === offset
     })
   } catch {
@@ -135,22 +159,19 @@ function findTzEntry(tz) {
   }
 }
 
-// Button display: uses list label's city names, e.g. "Canberra, Melbourne, Sydney (GMT+11)"
 function formatButtonLabel(tz) {
   const entry = findTzEntry(tz)
-  // Extract city names from label: "(UTC+10:00) Canberra, Melbourne, Sydney" → "Canberra, Melbourne, Sydney"
   const cities = entry ? entry.label.replace(/^\(UTC[^)]*\)\s*/, '') : tz.split('/').pop().replace(/_/g, ' ')
   try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      timeZoneName: 'shortOffset',
-    }).formatToParts(new Date())
-    const offset = parts.find(p => p.type === 'timeZoneName')?.value || ''
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(new Date())
+    const offset = (parts.find(p => p.type === 'timeZoneName')?.value || '').replace('GMT', 'UTC')
     return `${cities} (${offset})`
   } catch {
     return cities
   }
 }
+
+// ─── TimezonePicker ───────────────────────────────────────────
 
 function TimezonePicker({ value, onChange }) {
   const [open, setOpen] = useState(false)
@@ -163,12 +184,10 @@ function TimezonePicker({ value, onChange }) {
     if (!search) return TIMEZONE_LIST
     const q = search.toLowerCase()
     return TIMEZONE_LIST.filter(({ tz, label }) =>
-      label.toLowerCase().includes(q) ||
-      tz.toLowerCase().replace(/_/g, ' ').includes(q)
+      label.toLowerCase().includes(q) || tz.toLowerCase().replace(/_/g, ' ').includes(q)
     )
   }, [search])
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return
     function handleClick(e) {
@@ -178,15 +197,15 @@ function TimezonePicker({ value, onChange }) {
       }
     }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('touchstart', handleClick)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('touchstart', handleClick)
+    }
   }, [open])
 
-  // Focus input when opened
-  useEffect(() => {
-    if (open && inputRef.current) inputRef.current.focus()
-  }, [open])
+  useEffect(() => { if (open && inputRef.current) inputRef.current.focus() }, [open])
 
-  // Scroll to selected
   useEffect(() => {
     if (open && listRef.current && !search) {
       const el = listRef.current.querySelector('[data-selected="true"]')
@@ -194,13 +213,8 @@ function TimezonePicker({ value, onChange }) {
     }
   }, [open, search])
 
-  function select(tz) {
-    onChange(tz)
-    setOpen(false)
-    setSearch('')
-  }
+  function select(tz) { onChange(tz); setOpen(false); setSearch('') }
 
-  // Determine which tz in the list is "selected" (may not be exact match)
   const selectedTz = TIMEZONE_LIST.find(t => t.tz === value)?.tz || findTzEntry(value)?.tz
 
   return (
@@ -214,9 +228,8 @@ function TimezonePicker({ value, onChange }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-80 bg-white border border-stone-200 rounded-xl shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 bottom-full mb-1 w-72 max-w-[calc(100vw-2.5rem)] bg-white border border-stone-200 rounded-xl shadow-lg z-50 overflow-hidden">
           <div className="p-2 border-b border-stone-100">
             <input
               ref={inputRef}
@@ -227,12 +240,10 @@ function TimezonePicker({ value, onChange }) {
               className="w-full text-sm px-3 py-1.5 border border-stone-200 rounded-lg outline-none focus:border-stone-400 placeholder:text-stone-300"
             />
           </div>
-
           <div ref={listRef} className="max-h-72 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-stone-400 text-center">No timezones found</div>
-            ) : (
-              filtered.map(({ tz, label }) => (
+            {filtered.length === 0
+              ? <div className="px-3 py-4 text-sm text-stone-400 text-center">No timezones found</div>
+              : filtered.map(({ tz, label }) => (
                 <button
                   key={tz}
                   data-selected={tz === selectedTz}
@@ -244,7 +255,7 @@ function TimezonePicker({ value, onChange }) {
                   {label}
                 </button>
               ))
-            )}
+            }
           </div>
         </div>
       )}
@@ -252,137 +263,526 @@ function TimezonePicker({ value, onChange }) {
   )
 }
 
-export default function ScheduleGrid({ schedule: initialSchedule, timezone: initialTz, onSave }) {
-  const [schedule, setSchedule] = useState(() => {
-    const s = {}
-    for (const day of DAYS) {
-      s[day] = initialSchedule?.[day] || null
+// ─── RollPopover ──────────────────────────────────────────────
+
+function RollPopover({ rollIdx, rolls, position, popoverRef, onRollChange }) {
+  const roll = rolls[rollIdx]
+  const listRef = useRef(null)
+
+  // Scroll selected time into view on open
+  useEffect(() => {
+    if (!listRef.current) return
+    const el = listRef.current.querySelector('[data-selected="true"]')
+    if (el) el.scrollIntoView({ block: 'center' })
+  }, [])
+
+  function nudge(dir) {
+    if (listRef.current) listRef.current.scrollBy({ top: dir * 36, behavior: 'smooth' })
+  }
+
+  return (
+    <div
+      ref={popoverRef}
+      style={{ position: 'fixed', top: position.top, left: position.left, zIndex: 200 }}
+      className="bg-white border border-stone-200 rounded-lg shadow-lg w-36 overflow-hidden"
+    >
+      <div className="px-3 py-2 border-b border-stone-100">
+        <span className="text-xs font-medium text-stone-600">Pinch {rollIdx + 1}</span>
+      </div>
+
+      {/* Up arrow */}
+      <button
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => nudge(-1)}
+        className="w-full py-1 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-50 cursor-pointer"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+
+      {/* Scrollable time list */}
+      <div ref={listRef} style={{ maxHeight: '180px', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+        {TIME_OPTIONS.map(t => (
+          <button
+            key={t}
+            data-selected={t === roll.time}
+            onClick={() => onRollChange(rollIdx, t)}
+            className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+              t === roll.time
+                ? 'bg-stone-900 text-white font-medium'
+                : 'text-stone-700 hover:bg-stone-50'
+            }`}
+          >
+            {formatTime12(t)}
+          </button>
+        ))}
+      </div>
+
+      {/* Down arrow */}
+      <button
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => nudge(1)}
+        className="w-full py-1 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-50 border-t border-stone-100 cursor-pointer"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ─── InfoTooltip ──────────────────────────────────────────────
+
+function InfoTooltip() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
     }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center justify-center text-stone-400 hover:text-stone-600 transition-colors cursor-pointer leading-none"
+        aria-label="How to use the schedule"
+      >
+        <Info size={14} strokeWidth={1.75} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 bg-stone-900 text-white rounded-lg px-3 py-2.5 z-50 w-56 shadow-lg">
+          {[
+            'Drag a pinch to move it',
+            'Tap once to edit time',
+            'Tap twice to skip/restore',
+            'Tap the day to toggle/reset it',
+          ].map(hint => (
+            <div key={hint} className="flex items-start gap-2 py-0.5">
+              <span className="text-stone-500 mt-px text-xs">·</span>
+              <span className="text-[11px] text-stone-200">{hint}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── WeekHeatmap ──────────────────────────────────────────────
+
+// Cell types: 'off' | 'idle' | 'ping' | 'window' | 'disabled-ping'
+// 'disabled-ping' = marker for a disabled roll (so user can click to re-enable)
+
+function buildGrid(schedule) {
+  return DAYS.map(day => {
+    const rolls = schedule[day]
+    if (!rolls) return Array(24).fill({ type: 'off', rollIdx: -1 })
+
+    const cells = Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1 }))
+
+    // First pass: enabled rolls — ping marker + 5h window
+    for (let ri = 0; ri < rolls.length; ri++) {
+      const roll = rolls[ri]
+      if (!roll.enabled) continue
+      const [h] = roll.time.split(':').map(Number)
+      for (let i = 0; i < 5; i++) {
+        const hour = (h + i) % 24
+        if (i === 0) cells[hour] = { type: 'ping', rollIdx: ri }
+        else if (cells[hour].type !== 'ping') cells[hour] = { type: 'window', rollIdx: ri }
+      }
+    }
+
+    // Second pass: disabled rolls — show faint marker only (so user can click to re-enable)
+    for (let ri = 0; ri < rolls.length; ri++) {
+      const roll = rolls[ri]
+      if (roll.enabled) continue
+      const [h] = roll.time.split(':').map(Number)
+      if (cells[h].type === 'idle') cells[h] = { type: 'disabled-ping', rollIdx: ri }
+    }
+
+    return cells
+  })
+}
+
+const CELL_COLORS = {
+  ping:           '#1aab6b',  // malachite
+  window:         '#8ee8be',  // malachite light
+  'disabled-ping':'#d6d3d1',  // stone-300
+  idle:           '#f0efed',  // stone-100ish
+  off:            '#fafaf9',  // stone-50
+}
+
+const HOUR_ORDER = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,0]
+
+function WeekHeatmap({ schedule, onUpdateDay }) {
+  const [popover, setPopover] = useState(null) // { dayIndex, rollIdx, top, left }
+  const [drag, setDrag] = useState(null) // { dayIndex, rollIdx, startHour }
+  const [dragHour, setDragHour] = useState(null)
+  const gridRef = useRef(null)
+  const popoverRef = useRef(null)
+  const cellRefs = useRef({}) // key: `${di}-${hour}` → element
+  const justDragged = useRef(false)
+  const lastTapRef = useRef({ dayIndex: -1, rollIdx: -1, time: 0 })
+
+  const grid = useMemo(() => buildGrid(schedule), [schedule])
+
+  // Close popover when clicking outside both the grid and the popover
+  useEffect(() => {
+    if (!popover) return
+    function handler(e) {
+      const inGrid = gridRef.current?.contains(e.target)
+      const inPopover = popoverRef.current?.contains(e.target)
+      if (!inGrid && !inPopover) setPopover(null)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [popover])
+
+  // Drag: track pointer movement and handle drop (Pointer Events — works on iOS + desktop)
+  useEffect(() => {
+    if (!drag) return
+
+    function handleMove(e) {
+      if (!gridRef.current) return
+      const clientY = e.clientY
+      let closestHour = null
+      let closestDist = Infinity
+      for (const hour of HOUR_ORDER) {
+        const key = `${drag.dayIndex}-${hour}`
+        const el = cellRefs.current[key]
+        if (!el) continue
+        const rect = el.getBoundingClientRect()
+        const centerY = rect.top + rect.height / 2
+        const dist = Math.abs(clientY - centerY)
+        if (dist < closestDist) {
+          closestDist = dist
+          closestHour = hour
+        }
+      }
+      setDragHour(closestHour)
+    }
+
+    function handleUp() {
+      if (dragHour !== null && dragHour !== drag.startHour) {
+        const day = DAYS[drag.dayIndex]
+        const rolls = schedule[day]
+        if (rolls) {
+          const newTime = `${String(dragHour).padStart(2, '0')}:00`
+          const delta = timeToMinutes(newTime) - timeToMinutes(rolls[drag.rollIdx].time)
+          const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
+          onUpdateDay(day, updated)
+        }
+      }
+      justDragged.current = true
+      setTimeout(() => { justDragged.current = false }, 0)
+      setDrag(null)
+      setDragHour(null)
+    }
+
+    document.addEventListener('pointermove', handleMove)
+    document.addEventListener('pointerup', handleUp)
+    return () => {
+      document.removeEventListener('pointermove', handleMove)
+      document.removeEventListener('pointerup', handleUp)
+    }
+  }, [drag, dragHour, schedule, onUpdateDay])
+
+  function handleHeaderClick(dayIndex) {
+    const day = DAYS[dayIndex]
+    setPopover(null)
+    onUpdateDay(day, schedule[day] ? null : buildDefaultRolls('05:00'))
+  }
+
+  function handleCellPointerDown(e, dayIndex, hour) {
+    const cell = grid[dayIndex][hour]
+    if (cell.type !== 'ping') return
+    if (e.button && e.button !== 0) return // ignore right-click
+    const startY = e.clientY
+    const el = e.currentTarget
+    el.setPointerCapture(e.pointerId)
+
+    function onMove(ev) {
+      if (Math.abs(ev.clientY - startY) > 4) {
+        el.removeEventListener('pointermove', onMove)
+        el.removeEventListener('pointerup', onUp)
+        el.releasePointerCapture(ev.pointerId)
+        setPopover(null)
+        setDrag({ dayIndex, rollIdx: cell.rollIdx, startHour: hour })
+        setDragHour(hour)
+      }
+    }
+    function onUp() {
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerup', onUp)
+    }
+    el.addEventListener('pointermove', onMove)
+    el.addEventListener('pointerup', onUp)
+  }
+
+  function handleCellClick(e, dayIndex, hour) {
+    if (drag || justDragged.current) return
+    const day = DAYS[dayIndex]
+    const cell = grid[dayIndex][hour]
+
+    // Double-tap detection — must be first so it's not blocked by popover toggle
+    const now = Date.now()
+    const last = lastTapRef.current
+    if (last.dayIndex === dayIndex && last.rollIdx === cell.rollIdx && now - last.time < 400) {
+      lastTapRef.current = { dayIndex: -1, rollIdx: -1, time: 0 }
+      if (cell.type === 'ping' || cell.type === 'disabled-ping') {
+        const rolls = schedule[day]
+        if (!rolls) return
+        const updated = [...rolls]
+        updated[cell.rollIdx] = { ...updated[cell.rollIdx], enabled: !updated[cell.rollIdx].enabled }
+        onUpdateDay(day, updated)
+        setPopover(null)
+      }
+      return
+    }
+    lastTapRef.current = { dayIndex, rollIdx: cell.rollIdx, time: now }
+
+    // Toggle same popover closed
+    if (popover?.dayIndex === dayIndex && popover?.rollIdx === cell.rollIdx &&
+        (cell.type === 'ping' || cell.type === 'window' || cell.type === 'disabled-ping')) {
+      setPopover(null)
+      return
+    }
+
+    // Idle or off: activate day
+    if (cell.type === 'idle' || cell.type === 'off') {
+      setPopover(null)
+      onUpdateDay(day, buildDefaultRolls(`${String(hour).padStart(2, '0')}:00`))
+      return
+    }
+
+    // Single tap: open time picker
+    const rect = e.currentTarget.getBoundingClientRect()
+    setPopover({
+      dayIndex,
+      rollIdx: cell.rollIdx,
+      top: Math.min(rect.bottom + 6, window.innerHeight - 260),
+      left: Math.max(4, Math.min(rect.left, window.innerWidth - 144)),
+    })
+  }
+
+  function handleRollChange(rollIdx, newTime) {
+    if (!popover) return
+    const day = DAYS[popover.dayIndex]
+    const rolls = schedule[day]
+    if (!rolls) return
+    const delta = timeToMinutes(newTime) - timeToMinutes(rolls[rollIdx].time)
+    const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
+    onUpdateDay(day, updated)
+    setPopover(null)
+  }
+
+  return (
+    <div ref={gridRef} className="px-5 py-4" style={{ userSelect: drag ? 'none' : 'auto', WebkitUserSelect: drag ? 'none' : 'auto' }}>
+      {/* Day column headers — click to toggle day on/off */}
+      <div style={{ display: 'grid', gridTemplateColumns: '20px repeat(7, 1fr)', gap: '3px', marginBottom: '6px' }}>
+        <div />
+        {DAYS.map((day, di) => {
+          const isActive = !!schedule[day]
+          return (
+            <button
+              key={day}
+              onClick={() => handleHeaderClick(di)}
+              className={`text-xs font-medium py-0.5 rounded transition-colors cursor-pointer ${
+                isActive ? 'text-stone-600 hover:text-stone-900' : 'text-stone-300 hover:text-stone-500'
+              }`}
+            >
+              {DAY_LABELS[day]}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Hour rows — 1am..11pm, 12am (midnight at bottom so late-night windows are contiguous) */}
+      {HOUR_ORDER.map(hour => (
+        <div key={hour} style={{ display: 'grid', gridTemplateColumns: '20px repeat(7, 1fr)', gap: '3px', marginBottom: '2px' }}>
+          <div className="flex items-center justify-end pr-1">
+            {HOUR_LABELS[hour] !== undefined && (
+              <span style={{ fontSize: '10px', lineHeight: 1 }} className="text-stone-300 whitespace-nowrap">
+                {HOUR_LABELS[hour]}
+              </span>
+            )}
+          </div>
+          {grid.map((dayGrid, di) => {
+            const cell = dayGrid[hour]
+            const isPing = cell.type === 'ping'
+            const pingLabel = isPing && schedule[DAYS[di]]?.[cell.rollIdx]
+              ? formatTime12(schedule[DAYS[di]][cell.rollIdx].time).replace(/ [AP]M$/, '')
+              : null
+            const isDragging = drag && drag.dayIndex === di && drag.rollIdx === cell.rollIdx && isPing
+            const isDragTarget = drag && drag.dayIndex === di && dragHour === hour && !isPing
+            return (
+              <div
+                key={di}
+                ref={el => { cellRefs.current[`${di}-${hour}`] = el }}
+                onPointerDown={e => handleCellPointerDown(e, di, hour)}
+                onClick={e => handleCellClick(e, di, hour)}
+                style={{
+                  height: '22px',
+                  borderRadius: '2px',
+                  backgroundColor: isDragTarget ? '#1aab6b80' : CELL_COLORS[cell.type],
+                  cursor: isPing ? (drag ? 'grabbing' : 'grab') : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  opacity: isDragging ? 0.5 : 1,
+                  outline: isDragTarget ? '2px solid #1aab6b' : 'none',
+                  outlineOffset: '-1px',
+                  transition: drag ? 'none' : 'opacity 0.15s',
+                  touchAction: isPing ? 'none' : 'auto',
+                }}
+                className={drag ? '' : 'hover:opacity-70 active:opacity-50'}
+              >
+                {pingLabel && (
+                  <span style={{ fontSize: '11px', lineHeight: 1, color: '#fff', fontWeight: 600, letterSpacing: '-0.02em' }}>
+                    {pingLabel}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+
+
+      {/* Roll edit popover */}
+      {popover && schedule[DAYS[popover.dayIndex]] && (
+        <RollPopover
+          rollIdx={popover.rollIdx}
+          rolls={schedule[DAYS[popover.dayIndex]]}
+          position={{ top: popover.top, left: popover.left }}
+          popoverRef={popoverRef}
+          onRollChange={handleRollChange}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Main ScheduleGrid ────────────────────────────────────────
+
+export default function ScheduleGrid({ schedule: initialSchedule, timezone: initialTz, onSave, footerRight }) {
+  const [schedule, setSchedule] = useState(() => {
+    const normalized = normalizeSchedule(initialSchedule)
+    const s = {}
+    for (const day of DAYS) s[day] = normalized[day] || null
     return s
   })
   const [timezone, setTimezone] = useState(
     initialTz || Intl.DateTimeFormat().resolvedOptions().timeZone
   )
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [saveError, setSaveError] = useState(null)
+  const [dirty, setDirty] = useState(false)
+  const saveTimer = useRef(null)
+  const latestRef = useRef({ schedule: null, timezone: null })
 
-  // Sync from server when props change (e.g., after poll refresh or auto-pause)
+  // Only sync from server when user has no unsaved local changes
   useEffect(() => {
-    if (!initialSchedule) return
+    if (!initialSchedule || dirty) return
+    const normalized = normalizeSchedule(initialSchedule)
     const s = {}
-    for (const day of DAYS) {
-      s[day] = initialSchedule[day] || null
-    }
+    for (const day of DAYS) s[day] = normalized[day] || null
     setSchedule(s)
-  }, [initialSchedule])
+  }, [initialSchedule, dirty])
 
   useEffect(() => {
-    if (initialTz) setTimezone(initialTz)
-  }, [initialTz])
+    if (initialTz && !dirty) setTimezone(initialTz)
+  }, [initialTz, dirty])
 
-  function toggleDay(day) {
-    setSchedule(prev => ({
-      ...prev,
-      [day]: prev[day] ? null : '08:00',
-    }))
-    setSaved(false)
+  // Auto-save: debounce 800ms after any change
+  useEffect(() => {
+    if (!dirty) return
+    latestRef.current = { schedule, timezone }
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      const { schedule: s, timezone: tz } = latestRef.current
+      setSaveStatus('saving')
+      setSaveError(null)
+      try {
+        await onSave(s, tz)
+        setDirty(false)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus(prev => prev === 'saved' ? 'idle' : prev), 2000)
+      } catch (e) {
+        setSaveStatus('error')
+        setSaveError(e.message || 'Failed to save')
+      }
+    }, 800)
+    return () => clearTimeout(saveTimer.current)
+  }, [schedule, timezone, dirty, onSave])
+
+  function updateDay(day, value) {
+    setSchedule(prev => ({ ...prev, [day]: value }))
+    setDirty(true)
   }
 
-  function setTime(day, time) {
-    setSchedule(prev => ({ ...prev, [day]: time }))
-    setSaved(false)
-  }
-
-  async function handleSave() {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      await onSave(schedule, timezone)
-      setSaved(true)
-    } catch (e) {
-      setSaveError(e.message || 'Failed to save schedule')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const activeDays = DAYS.filter(d => schedule[d]).length
+  const totalPings = DAYS.reduce((sum, d) => {
+    if (!schedule[d]) return sum
+    return sum + schedule[d].filter(r => r.enabled).length
+  }, 0)
 
   return (
-    <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="font-semibold text-stone-900">Schedule</h2>
-        <div className="flex items-center gap-2">
-          <TimezonePicker
-            value={timezone}
-            onChange={tz => { setTimezone(tz); setSaved(false) }}
-          />
-          <button
-            onClick={() => {
-              const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
-              // Map to a list entry if possible, otherwise keep raw IANA
-              const match = findTzEntry(detected)
-              setTimezone(match ? match.tz : detected)
-              setSaved(false)
-            }}
-            title="Auto-detect timezone"
-            className="text-xs text-stone-400 hover:text-stone-600 border border-stone-200 rounded-lg px-2 py-1.5 hover:border-stone-300 transition-colors cursor-pointer"
-          >
-            Detect
-          </button>
+    <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-5 pt-5 pb-4 border-b border-stone-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <h2 className="font-bold text-stone-900 text-sm tracking-wide uppercase">Weekly Schedule</h2>
+            <InfoTooltip />
+          </div>
+          <div className="flex items-center gap-4">
+            {[
+              { color: CELL_COLORS.ping, label: 'pinch' },
+              { color: CELL_COLORS.idle, label: 'rest' },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: color }} />
+                <span style={{ fontSize: '10px' }} className="text-stone-400">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        {DAYS.map(day => (
-          <div key={day} className="flex items-center gap-4">
-            <button
-              onClick={() => toggleDay(day)}
-              className={`w-10 h-6 rounded-full relative transition-colors cursor-pointer ${
-                schedule[day] ? 'bg-emerald-500' : 'bg-stone-200'
-              }`}
-            >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                schedule[day] ? 'left-[18px]' : 'left-0.5'
-              }`} />
-            </button>
+      {/* Heatmap — the only editing surface */}
+      <WeekHeatmap schedule={schedule} onUpdateDay={updateDay} />
 
-            <span className={`w-10 text-sm font-medium ${schedule[day] ? 'text-stone-900' : 'text-stone-400'}`}>
-              {DAY_LABELS[day]}
-            </span>
-
-            <div className="w-32">
-              {schedule[day] ? (
-                <select
-                  value={schedule[day]}
-                  onChange={e => setTime(day, e.target.value)}
-                  className="text-sm border border-stone-200 rounded-lg px-3 py-1.5 bg-white text-stone-700"
-                >
-                  {TIME_OPTIONS.map(t => (
-                    <option key={t} value={t}>{formatTime12(t)}</option>
-                  ))}
-                </select>
-              ) : (
-                <span className="text-sm text-stone-300">Off</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-5 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          {saving ? 'Saving...' : 'Save schedule'}
-        </button>
-        {saved && (
-          <span className="text-sm text-emerald-600">Saved</span>
-        )}
-        {saveError && (
-          <span className="text-sm text-red-600">{saveError}</span>
-        )}
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-stone-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-stone-400" style={{ minWidth: '60px' }}>
+            {saveStatus === 'saving' && 'Saving...'}
+            {saveStatus === 'saved' && <span className="text-emerald-600">Saved</span>}
+            {saveStatus === 'error' && <span className="text-red-600">{saveError}</span>}
+          </span>
+        </div>
+        <TimezonePicker
+          value={timezone}
+          onChange={tz => { setTimezone(tz); setDirty(true) }}
+        />
       </div>
     </div>
   )

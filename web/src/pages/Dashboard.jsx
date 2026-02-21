@@ -5,17 +5,26 @@ import { apiFetch } from '../lib/api'
 import StatusPanel from '../components/StatusPanel'
 import ScheduleGrid from '../components/ScheduleGrid'
 
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
 function RevocationInstructions() {
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
       <h3 className="font-semibold text-amber-900 mb-2">Revoke your token for full security</h3>
       <p className="text-amber-700 text-sm mb-3">
-        Your encrypted token has been deleted from PinchPoint, but it remains valid at Anthropic until you revoke it.
+        Your encrypted token has been deleted from pinchpoint, but it remains valid at Anthropic until you revoke it.
       </p>
       <ol className="text-sm text-amber-800 space-y-1 list-decimal list-inside mb-3">
         <li>Go to <a href="https://claude.ai/settings" target="_blank" rel="noopener noreferrer" className="underline font-medium">claude.ai/settings</a></li>
         <li>Find "Connected apps" or "API keys"</li>
-        <li>Revoke the token used with PinchPoint</li>
+        <li>Revoke the token used with pinchpoint</li>
       </ol>
       <p className="text-amber-600 text-xs">
         Tokens have a ~1 year lifetime. Revoking ensures no one can use it even if our systems were compromised.
@@ -51,8 +60,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 30_000)
-    return () => clearInterval(interval)
   }, [fetchStatus])
 
   async function handleScheduleSave(schedule, timezone) {
@@ -121,7 +128,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-stone-50">
       {/* Nav */}
       <nav className="flex items-center justify-between max-w-4xl mx-auto px-6 py-6">
-        <Link to="/" className="text-lg font-semibold tracking-tight text-stone-900">PinchPoint</Link>
+        <Link to="/home" className="text-lg font-semibold tracking-tight text-stone-900">pinchpoint</Link>
         <UserButton />
       </nav>
 
@@ -148,7 +155,7 @@ export default function Dashboard() {
         )}
 
         {status && (
-          <div className="space-y-8">
+          <div className="space-y-4">
             {/* Revocation instructions after disconnect */}
             {disconnected && <RevocationInstructions />}
 
@@ -165,76 +172,93 @@ export default function Dashboard() {
               </div>
             )}
 
-            <StatusPanel status={status} onTogglePause={handleTogglePause} onPinchNow={handlePinchNow} pinching={pinching} />
+            <StatusPanel status={status} />
+
+            {/* Action buttons */}
+            {status.hasCredentials && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePinchNow}
+                  disabled={pinching}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-colors bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {pinching && <Spinner />}
+                  {pinching ? 'Pinching...' : 'Pinch me'}
+                </button>
+                <button
+                  onClick={handleTogglePause}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-colors ${
+                    status.paused
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200/60 hover:bg-amber-100'
+                      : 'bg-stone-100 text-stone-600 border border-stone-200/60 hover:bg-stone-200'
+                  }`}
+                >
+                  {status.paused ? 'Unpause' : 'Pause me'}
+                </button>
+              </div>
+            )}
+
             <ScheduleGrid
               schedule={status.schedule}
               timezone={status.timezone}
               onSave={handleScheduleSave}
             />
 
-            {/* Disconnect token (only when connected) */}
-            {status.hasCredentials && (
-              <div className="border border-amber-200 rounded-xl p-6">
-                <h3 className="text-sm font-semibold text-amber-900 mb-1">Disconnect Claude token</h3>
-                <p className="text-xs text-amber-700/70 mb-4">
-                  Remove your stored token and stop all pings. Your schedule will be preserved.
-                </p>
-                {!showDisconnectConfirm ? (
-                  <button
-                    onClick={() => setShowDisconnectConfirm(true)}
-                    className="text-sm text-amber-600 font-medium hover:text-amber-700 cursor-pointer"
-                  >
-                    Disconnect token
-                  </button>
+            {/* Disconnect / Delete */}
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-stone-400">
+              {status.hasCredentials && (
+                !showDisconnectConfirm ? (
+                  <>
+                    <button
+                      onClick={() => setShowDisconnectConfirm(true)}
+                      className="hover:text-amber-600 transition-colors cursor-pointer"
+                    >
+                      Delete token
+                    </button>
+                    <span>·</span>
+                  </>
                 ) : (
-                  <div className="flex items-center gap-3">
+                  <>
                     <button
                       onClick={handleDisconnect}
                       disabled={disconnecting}
-                      className="px-4 py-2 bg-amber-600 text-white text-sm rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
+                      className="text-amber-600 font-medium hover:text-amber-700 disabled:opacity-50 cursor-pointer"
                     >
-                      {disconnecting ? 'Disconnecting...' : 'Yes, disconnect'}
+                      {disconnecting ? 'Deleting...' : 'Yes, delete token'}
                     </button>
                     <button
                       onClick={() => setShowDisconnectConfirm(false)}
-                      className="text-sm text-stone-500 hover:text-stone-700 cursor-pointer"
+                      className="hover:text-stone-600 cursor-pointer"
                     >
                       Cancel
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Danger zone */}
-            <div className="border border-red-200 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-red-900 mb-1">Delete account</h3>
-              <p className="text-xs text-red-700/70 mb-4">
-                Permanently delete your account and all stored data, including your encrypted token.
-              </p>
+                    <span>·</span>
+                  </>
+                )
+              )}
               {!showDeleteConfirm ? (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="text-sm text-red-600 font-medium hover:text-red-700 cursor-pointer"
+                  className="hover:text-red-500 transition-colors cursor-pointer"
                 >
-                  Delete my account
+                  Delete account
                 </button>
               ) : (
-                <div className="flex items-center gap-3">
+                <>
                   <button
                     onClick={handleDeleteAccount}
                     disabled={deleting}
-                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+                    className="text-red-600 font-medium hover:text-red-700 disabled:opacity-50 cursor-pointer"
                   >
-                    {deleting ? 'Deleting...' : 'Yes, delete everything'}
+                    {deleting ? 'Deleting...' : 'Yes, delete'}
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="text-sm text-stone-500 hover:text-stone-700 cursor-pointer"
+                    className="hover:text-stone-600 cursor-pointer"
                   >
                     Cancel
                   </button>
-                </div>
+                </>
               )}
             </div>
           </div>

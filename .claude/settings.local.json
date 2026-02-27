@@ -15,7 +15,9 @@
       "mcp__plugin_playwright_playwright__*",
       "Skill(web-search)",
       "Skill(web-search:*)",
-      "mcp__plugin_serena_serena__*"
+      "mcp__plugin_serena_serena__*",
+      "Skill(keybindings-help)",
+      "Skill(keybindings-help:*)"
     ],
     "deny": [],
     "ask": [],

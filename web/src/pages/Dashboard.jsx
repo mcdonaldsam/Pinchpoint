@@ -73,13 +73,16 @@ export default function Dashboard() {
   }, [getToken, fetchStatus])
 
   const [pinching, setPinching] = useState(false)
+  const [pinchError, setPinchError] = useState(null)
 
   async function handlePinchNow() {
     setPinching(true)
+    setPinchError(null)
     try {
       await apiFetch('/api/test-ping', { method: 'POST' }, getToken)
       await fetchStatus()
-    } catch {
+    } catch (e) {
+      setPinchError(e.message)
       await fetchStatus()
     } finally {
       setPinching(false)
@@ -206,6 +209,10 @@ export default function Dashboard() {
 
             {/* Action buttons */}
             {status.hasCredentials && (
+              <div className="space-y-2">
+              {pinchError && (
+                <p className="text-center text-sm text-amber-600">{pinchError}</p>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePinchNow}
@@ -225,6 +232,7 @@ export default function Dashboard() {
                 >
                   {status.paused ? 'Unpause' : 'Pause me'}
                 </button>
+              </div>
               </div>
             )}
 

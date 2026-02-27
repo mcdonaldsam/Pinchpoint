@@ -421,34 +421,49 @@ function InfoTooltip() {
 // 'disabled-ping' = marker for a disabled roll (so user can click to re-enable)
 
 function buildGrid(schedule) {
-  return DAYS.map(day => {
+  // Initialize all day grids first
+  const grid = DAYS.map(day => {
     const rolls = schedule[day]
     if (!rolls) return Array(24).fill({ type: 'off', rollIdx: -1 })
+    return Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1 }))
+  })
 
-    const cells = Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1 }))
+  // Process each day — enabled rolls with cross-day spillover
+  DAYS.forEach((day, di) => {
+    const rolls = schedule[day]
+    if (!rolls) return
 
-    // First pass: enabled rolls — ping marker + 5h window
     for (let ri = 0; ri < rolls.length; ri++) {
       const roll = rolls[ri]
       if (!roll.enabled) continue
       const [h] = roll.time.split(':').map(Number)
       for (let i = 0; i < 5; i++) {
-        const hour = (h + i) % 24
-        if (i === 0) cells[hour] = { type: 'ping', rollIdx: ri }
-        else if (cells[hour].type !== 'ping') cells[hour] = { type: 'window', rollIdx: ri }
+        const absHour = h + i
+        if (absHour < 24) {
+          // Same day
+          if (i === 0) grid[di][absHour] = { type: 'ping', rollIdx: ri }
+          else if (grid[di][absHour].type !== 'ping') grid[di][absHour] = { type: 'window', rollIdx: ri }
+        } else {
+          // Spill into next day's column
+          const nextDi = (di + 1) % 7
+          const nextHour = absHour - 24
+          if (grid[nextDi][nextHour].type !== 'ping') {
+            grid[nextDi][nextHour] = { type: 'window', rollIdx: -1 }
+          }
+        }
       }
     }
 
-    // Second pass: disabled rolls — show faint marker only (so user can click to re-enable)
+    // Disabled rolls — faint marker
     for (let ri = 0; ri < rolls.length; ri++) {
       const roll = rolls[ri]
       if (roll.enabled) continue
       const [h] = roll.time.split(':').map(Number)
-      if (cells[h].type === 'idle') cells[h] = { type: 'disabled-ping', rollIdx: ri }
+      if (grid[di][h].type === 'idle') grid[di][h] = { type: 'disabled-ping', rollIdx: ri }
     }
-
-    return cells
   })
+
+  return grid
 }
 
 const CELL_COLORS = {

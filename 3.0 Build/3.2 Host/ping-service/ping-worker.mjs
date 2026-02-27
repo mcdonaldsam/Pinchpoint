@@ -4,7 +4,7 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
-const TOKEN_PATTERN = /sk-ant-\w{3,6}-[A-Za-z0-9_-]{10,}/g
+const TOKEN_PATTERN = /sk-ant-\w{2,10}-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{20,}/g
 
 function sanitizeError(msg) {
   if (typeof msg !== 'string') return String(msg)

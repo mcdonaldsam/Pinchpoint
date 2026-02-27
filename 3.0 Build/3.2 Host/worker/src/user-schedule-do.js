@@ -6,7 +6,7 @@ import { sendDisconnectNotification, sendAutoPauseNotification } from './email.j
 import { normalizeSchedule } from './validate.js'
 
 // Strip tokens from error messages to prevent leaks in logs
-const TOKEN_PATTERN = /sk-ant-\w{3,6}-[A-Za-z0-9_-]{10,}/g
+const TOKEN_PATTERN = /sk-ant-\w{2,10}-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{20,}/g
 function sanitizeError(msg) {
   if (typeof msg !== 'string') return String(msg)
   return msg.replace(TOKEN_PATTERN, 'sk-ant-***REDACTED***')
@@ -118,7 +118,7 @@ export class UserScheduleDO {
       pingError = sanitizeError(e.message || String(e))
     }
 
-    if (updateHealth) await this.handlePingResult(success, rateLimitInfo)
+    await this.handlePingResult(success, rateLimitInfo, { updateHealth })
 
     return {
       step: 'completed',
@@ -129,9 +129,8 @@ export class UserScheduleDO {
     }
   }
 
-  async handlePingResult(success, rateLimitInfo) {
+  async handlePingResult(success, rateLimitInfo, { updateHealth = true } = {}) {
     const now = new Date()
-    const consecutiveFailures = (await this.state.storage.get('consecutiveFailures')) || 0
 
     if (success) {
       // Use exact resetsAt from SDK if available, otherwise estimate now + 5h
@@ -145,21 +144,27 @@ export class UserScheduleDO {
         windowEnds,
         exact: !!rateLimitInfo?.resetsAt,
       })
+
+      if (!updateHealth) return
+
       await this.state.storage.put('consecutiveFailures', 0)
       await this.state.storage.put('tokenHealth', 'green')
-
       await this.scheduleNextAlarm()
       return
     }
 
-    // Failure path
-    const newFailures = consecutiveFailures + 1
-    await this.state.storage.put('consecutiveFailures', newFailures)
+    // Failure path — always record the attempt
     await this.state.storage.put('lastPing', {
       time: now.toISOString(),
       success: false,
       windowEnds: null,
     })
+
+    if (!updateHealth) return
+
+    const consecutiveFailures = (await this.state.storage.get('consecutiveFailures')) || 0
+    const newFailures = consecutiveFailures + 1
+    await this.state.storage.put('consecutiveFailures', newFailures)
 
     if (newFailures >= 5) {
       // Auto-pause — stop retrying

@@ -7,13 +7,14 @@ const VALID_DAYS = [
 const TIME_REGEX = /^([01]\d|2[0-3]):00$/
 
 /**
- * Build 4 default rolls from a start time (each +5h apart).
+ * Build default rolls from a start time (each +5h apart).
  * @param {string} startTime - "HH:MM" in 24h format
+ * @param {number} [maxRolls=5] - number of rolls to generate (1-5)
  * @returns {Array<{time: string, enabled: boolean}>}
  */
-export function buildDefaultRolls(startTime) {
+export function buildDefaultRolls(startTime, maxRolls = 5) {
   const [h, m] = startTime.split(':').map(Number)
-  return Array.from({ length: 4 }, (_, i) => {
+  return Array.from({ length: maxRolls }, (_, i) => {
     const totalMin = (h * 60 + m + i * 300) % 1440
     const rh = String(Math.floor(totalMin / 60)).padStart(2, '0')
     const rm = String(totalMin % 60).padStart(2, '0')
@@ -62,10 +63,10 @@ export function validateSchedule(schedule) {
       continue
     }
 
-    // New format: array of 4 rolls
+    // New format: array of 1-5 rolls
     if (Array.isArray(value)) {
-      if (value.length !== 4) {
-        return `${day} must have exactly 4 rolls`
+      if (value.length < 1 || value.length > 5) {
+        return `${day} must have 1-5 rolls`
       }
       for (let i = 0; i < value.length; i++) {
         const roll = value[i]

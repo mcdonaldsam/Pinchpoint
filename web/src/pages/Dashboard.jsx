@@ -79,7 +79,10 @@ export default function Dashboard() {
     setPinching(true)
     setPinchError(null)
     try {
-      await apiFetch('/api/test-ping', { method: 'POST' }, getToken)
+      const result = await apiFetch('/api/test-ping', { method: 'POST' }, getToken)
+      if (!result.success) {
+        setPinchError(result.pingError || result.error || 'Ping failed')
+      }
       await fetchStatus()
     } catch (e) {
       setPinchError(e.message)

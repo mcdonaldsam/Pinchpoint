@@ -421,45 +421,60 @@ function InfoTooltip() {
 // 'disabled-ping' = marker for a disabled roll (so user can click to re-enable)
 
 function buildGrid(schedule) {
-  // Initialize all day grids first
-  const grid = DAYS.map(day => {
+  // Initialize all day grids first — each cell tracks sourceDi for cross-day rolls
+  const grid = DAYS.map((day, di) => {
     const rolls = schedule[day]
-    if (!rolls) return Array(24).fill({ type: 'off', rollIdx: -1 })
-    return Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1 }))
+    if (!rolls) return Array.from({ length: 24 }, () => ({ type: 'off', rollIdx: -1, sourceDi: di }))
+    return Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1, sourceDi: di }))
   })
 
-  // Process each day — enabled rolls with cross-day spillover
+  // Process each day — enabled rolls with midnight-wrap + cross-day spillover
   DAYS.forEach((day, di) => {
     const rolls = schedule[day]
     if (!rolls) return
+
+    const roll1Min = timeToMinutes(rolls[0].time)
 
     for (let ri = 0; ri < rolls.length; ri++) {
       const roll = rolls[ri]
       if (!roll.enabled) continue
       const [h] = roll.time.split(':').map(Number)
+      const rollMin = h * 60
+
+      // Midnight-wrap: if this roll's time is earlier than roll 1, it fires next calendar day
+      const isWrapped = ri > 0 && rollMin < roll1Min
+      const renderDi = isWrapped ? (di + 1) % 7 : di
+
       for (let i = 0; i < 5; i++) {
         const absHour = h + i
         if (absHour < 24) {
-          // Same day
-          if (i === 0) grid[di][absHour] = { type: 'ping', rollIdx: ri }
-          else if (grid[di][absHour].type !== 'ping') grid[di][absHour] = { type: 'window', rollIdx: ri }
+          if (i === 0) {
+            if (grid[renderDi][absHour].type !== 'ping') {
+              grid[renderDi][absHour] = { type: 'ping', rollIdx: ri, sourceDi: di }
+            }
+          } else if (grid[renderDi][absHour].type === 'idle' || grid[renderDi][absHour].type === 'off') {
+            grid[renderDi][absHour] = { type: 'window', rollIdx: ri, sourceDi: di }
+          }
         } else {
-          // Spill into next day's column
-          const nextDi = (di + 1) % 7
+          // Spill into next day's column (relative to render day)
+          const nextDi = (renderDi + 1) % 7
           const nextHour = absHour - 24
-          if (grid[nextDi][nextHour].type !== 'ping') {
-            grid[nextDi][nextHour] = { type: 'window', rollIdx: -1 }
+          if (grid[nextDi][nextHour].type === 'idle' || grid[nextDi][nextHour].type === 'off') {
+            grid[nextDi][nextHour] = { type: 'window', rollIdx: -1, sourceDi: di }
           }
         }
       }
     }
 
-    // Disabled rolls — faint marker
+    // Disabled rolls — faint marker (also handles midnight-wrap)
     for (let ri = 0; ri < rolls.length; ri++) {
       const roll = rolls[ri]
       if (roll.enabled) continue
       const [h] = roll.time.split(':').map(Number)
-      if (grid[di][h].type === 'idle') grid[di][h] = { type: 'disabled-ping', rollIdx: ri }
+      const rollMin = h * 60
+      const isWrapped = ri > 0 && rollMin < roll1Min
+      const renderDi = isWrapped ? (di + 1) % 7 : di
+      if (grid[renderDi][h].type === 'idle') grid[renderDi][h] = { type: 'disabled-ping', rollIdx: ri, sourceDi: di }
     }
   })
 
@@ -569,6 +584,7 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
   function handleCellPointerDown(e, dayIndex, hour) {
     const cell = grid[dayIndex][hour]
     if (cell.type !== 'ping') return
+    if (cell.sourceDi !== dayIndex) return // don't drag midnight-wrapped rolls
     if (e.button && e.button !== 0) return // ignore right-click
     const startY = e.clientY
     const el = e.currentTarget
@@ -594,44 +610,49 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
 
   function handleCellClick(e, dayIndex, hour) {
     if (drag || justDragged.current) return
-    const day = DAYS[dayIndex]
     const cell = grid[dayIndex][hour]
+    // Use sourceDi for the actual schedule day (may differ for midnight-wrapped rolls)
+    const sourceDay = DAYS[cell.sourceDi]
 
     // Double-tap detection — must be first so it's not blocked by popover toggle
     const now = Date.now()
     const last = lastTapRef.current
-    if (last.dayIndex === dayIndex && last.rollIdx === cell.rollIdx && now - last.time < 400) {
+    if (last.dayIndex === cell.sourceDi && last.rollIdx === cell.rollIdx && now - last.time < 400) {
       lastTapRef.current = { dayIndex: -1, rollIdx: -1, time: 0 }
       if (cell.type === 'ping' || cell.type === 'disabled-ping') {
-        const rolls = schedule[day]
+        const rolls = schedule[sourceDay]
         if (!rolls) return
         const updated = [...rolls]
         updated[cell.rollIdx] = { ...updated[cell.rollIdx], enabled: !updated[cell.rollIdx].enabled }
-        onUpdateDay(day, updated)
+        onUpdateDay(sourceDay, updated)
         setPopover(null)
       }
       return
     }
-    lastTapRef.current = { dayIndex, rollIdx: cell.rollIdx, time: now }
+    lastTapRef.current = { dayIndex: cell.sourceDi, rollIdx: cell.rollIdx, time: now }
 
     // Toggle same popover closed
-    if (popover?.dayIndex === dayIndex && popover?.rollIdx === cell.rollIdx &&
+    if (popover?.dayIndex === cell.sourceDi && popover?.rollIdx === cell.rollIdx &&
         (cell.type === 'ping' || cell.type === 'window' || cell.type === 'disabled-ping')) {
       setPopover(null)
       return
     }
 
-    // Idle or off: activate day
+    // Idle or off: activate day (use display column day, not source)
     if (cell.type === 'idle' || cell.type === 'off') {
       setPopover(null)
+      const day = DAYS[dayIndex]
       onUpdateDay(day, buildDefaultRolls(`${String(hour).padStart(2, '0')}:00`))
       return
     }
 
-    // Single tap: open time picker
+    // Spillover window with no associated roll — ignore
+    if (cell.rollIdx === -1) return
+
+    // Single tap: open time picker (use sourceDi for correct schedule reference)
     const rect = e.currentTarget.getBoundingClientRect()
     setPopover({
-      dayIndex,
+      dayIndex: cell.sourceDi,
       rollIdx: cell.rollIdx,
       top: Math.min(rect.bottom + 6, window.innerHeight - 260),
       left: Math.max(4, Math.min(rect.left, window.innerWidth - 144)),
@@ -683,10 +704,10 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
           {grid.map((dayGrid, di) => {
             const cell = dayGrid[hour]
             const isPing = cell.type === 'ping'
-            const pingLabel = isPing && schedule[DAYS[di]]?.[cell.rollIdx]
-              ? formatTime12(schedule[DAYS[di]][cell.rollIdx].time).replace(/ [AP]M$/, '')
+            const pingLabel = isPing && schedule[DAYS[cell.sourceDi]]?.[cell.rollIdx]
+              ? formatTime12(schedule[DAYS[cell.sourceDi]][cell.rollIdx].time).replace(/ [AP]M$/, '')
               : null
-            const isDragging = drag && drag.dayIndex === di && drag.rollIdx === cell.rollIdx && isPing
+            const isDragging = drag && drag.dayIndex === cell.sourceDi && drag.rollIdx === cell.rollIdx && isPing
             const isDragTarget = drag && drag.dayIndex === di && dragHour === hour && !isPing
             return (
               <div

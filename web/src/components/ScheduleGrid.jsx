@@ -470,6 +470,9 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
   const cellRefs = useRef({}) // key: `${di}-${hour}` → element
   const justDragged = useRef(false)
   const lastTapRef = useRef({ dayIndex: -1, rollIdx: -1, time: 0 })
+  const dragHourRef = useRef(null)
+  const scheduleRef = useRef(schedule)
+  scheduleRef.current = schedule
 
   const grid = useMemo(() => buildGrid(schedule), [schedule])
 
@@ -490,6 +493,7 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
   }, [popover])
 
   // Drag: track pointer movement and handle drop (Pointer Events — works on iOS + desktop)
+  // Uses refs for dragHour/schedule to avoid re-registering listeners on every state change
   useEffect(() => {
     if (!drag) return
 
@@ -510,15 +514,17 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
           closestHour = hour
         }
       }
+      dragHourRef.current = closestHour
       setDragHour(closestHour)
     }
 
     function handleUp() {
-      if (dragHour !== null && dragHour !== drag.startHour) {
+      const currentDragHour = dragHourRef.current
+      if (currentDragHour !== null && currentDragHour !== drag.startHour) {
         const day = DAYS[drag.dayIndex]
-        const rolls = schedule[day]
+        const rolls = scheduleRef.current[day]
         if (rolls) {
-          const newTime = `${String(dragHour).padStart(2, '0')}:00`
+          const newTime = `${String(currentDragHour).padStart(2, '0')}:00`
           const delta = timeToMinutes(newTime) - timeToMinutes(rolls[drag.rollIdx].time)
           const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
           onUpdateDay(day, updated)
@@ -528,6 +534,7 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
       setTimeout(() => { justDragged.current = false }, 0)
       setDrag(null)
       setDragHour(null)
+      dragHourRef.current = null
     }
 
     document.addEventListener('pointermove', handleMove)
@@ -536,7 +543,7 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
       document.removeEventListener('pointermove', handleMove)
       document.removeEventListener('pointerup', handleUp)
     }
-  }, [drag, dragHour, schedule, onUpdateDay])
+  }, [drag, onUpdateDay])
 
   function handleHeaderClick(dayIndex) {
     const day = DAYS[dayIndex]
@@ -717,7 +724,7 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
 
 // ─── Main ScheduleGrid ────────────────────────────────────────
 
-export default function ScheduleGrid({ schedule: initialSchedule, timezone: initialTz, onSave, footerRight }) {
+export default function ScheduleGrid({ schedule: initialSchedule, timezone: initialTz, onSave }) {
   const [schedule, setSchedule] = useState(() => {
     const normalized = normalizeSchedule(initialSchedule)
     const s = {}

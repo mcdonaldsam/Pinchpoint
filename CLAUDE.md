@@ -169,7 +169,7 @@ PinchPoint/
 | Worker API | `https://api.pinchpoint.dev` | Live (`/api/health` → `{"ok":true}`) |
 | Frontend | `https://pinchpoint.dev` | Live |
 | Ping Service | `https://pinchpoint-ping.fly.dev` | Live (Fly.io, app: `pinchpoint-ping`, auto-stop/start) |
-| CLI | `3.0 Build/3.2 Host/cli/` | Built, not yet published to npm |
+| CLI | `3.0 Build/3.2 Host/cli/` | Published (`pinchpoint@0.1.0` on npm) |
 
 ### Worker API — DEPLOYED
 All routes implemented and wired: health, connect (start/poll/approve/complete), status, test-ping, test-ping-debug, schedule, pause, disconnect, account delete. Includes CORS (locked to `FRONTEND_URL`), KV-based rate limiting, input validation with multi-roll normalization, Clerk JWT auth with JWKS caching + `kid` rotation, and DO proxy helper.
@@ -234,8 +234,10 @@ Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE 
 - `api.pinchpoint.dev` → Worker
 
 ### Remaining Work
-- **Choose landing page design** — 15 variants (A-O) created, need to pick one and apply consistent styling
-- **npm publish** — Publish CLI package to npm registry (`npx pinchpoint connect`)
+All core work is complete. The product is fully deployed and live.
+
+- CLI published to npm as `pinchpoint@0.1.0` (`npx pinchpoint connect`)
+- Worker API, Frontend, and Ping Service all deployed and operational
 
 ---
 
@@ -271,7 +273,7 @@ The runtime `SDKRateLimitEvent` is emitted with exact rate limit data:
 userId              → string (Clerk user ID)
 email               → string
 schedule            → { monday: null | [{time: "HH:MM", enabled: bool}, ...], ... }
-                      (4 rolls per day, 15-min increments, null = day off)
+                      (4 rolls per day, hourly increments, null = day off)
 timezone            → string (IANA, default: "UTC")
 paused              → boolean
 setupToken          → string (AES-256-GCM encrypted, format: {ivHex}:{ciphertextHex})
@@ -297,7 +299,7 @@ Each day can have up to 4 "rolls" (pings), spaced 5 hours apart:
 - Rolls 2-4 cascade at +5h intervals
 - Each roll has `{time: "HH:MM", enabled: bool}` — disabled rolls are skipped but not deleted
 - Midnight-wrap: if roll 2+ has an earlier time than roll 1, it belongs to the next calendar day
-- `validate.js` enforces exactly 4 rolls per day, 15-min increments, roll 1 must be enabled
+- `validate.js` enforces exactly 4 rolls per day, hourly increments, roll 1 must be enabled
 - `normalizeSchedule()` converts old string format to new rolls array format
 
 ---
@@ -310,7 +312,7 @@ Each day can have up to 4 "rolls" (pings), spaced 5 hours apart:
 - **Ping concurrency:** Serialized queue (max 5 waiters) prevents `CLAUDE_CODE_OAUTH_TOKEN` env var race condition
 - **CORS:** Locked to `env.FRONTEND_URL` (not `*`)
 - **JWT auth:** JWKS cached 1 hour, `kid` matching with rotation fallback (cache bust + refetch), `exp`/`nbf`/`iss`/`aud`/`azp` checks
-- **Input validation:** Schedule days, times (15-min increments), rolls (exactly 4/day, roll 1 enabled), timezone all validated
+- **Input validation:** Schedule days, times (hourly increments), rolls (exactly 4/day, roll 1 enabled), timezone all validated
 - **Rate limiting:** KV-based per IP — `/connect/start` 10/60s, `/connect/poll` 60/60s, `/connect/complete` 10/60s, connect approval max 3 code attempts/session
 - **Connect sessions:** Unguessable UUID, 5-minute TTL, one-time use, approval requires Clerk auth, 4-digit verification code challenge (SHA-256 hash binding), mandatory token fingerprint
 - **Error sanitization:** Token patterns (`sk-ant-*`) stripped from all log output, crash handlers clear env vars

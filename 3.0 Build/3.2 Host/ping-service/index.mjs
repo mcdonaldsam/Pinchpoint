@@ -43,7 +43,7 @@ setInterval(() => {
 }, 30_000)
 
 // ─── Error sanitization — strip tokens from log output ──────────
-const TOKEN_PATTERN = /sk-ant-\w{3,6}-[A-Za-z0-9_-]{10,}/g
+const TOKEN_PATTERN = /sk-ant-\w{2,10}-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{20,}/g
 
 function sanitizeError(message) {
   if (typeof message !== 'string') return String(message)
@@ -54,33 +54,38 @@ function sanitizeError(message) {
 process.on('uncaughtException', (err) => {
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   console.error('Uncaught exception:', sanitizeError(err.message))
-  process.exit(1)
+  // Allow stderr to flush before exiting
+  setTimeout(() => process.exit(1), 100)
 })
 process.on('unhandledRejection', (reason) => {
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   console.error('Unhandled rejection:', sanitizeError(String(reason)))
-  process.exit(1)
+  setTimeout(() => process.exit(1), 100)
 })
 
-function readBody(req, maxBytes = 64 * 1024) {
+function readBody(req, maxBytes = 64 * 1024, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
+    const timer = setTimeout(() => {
+      req.destroy()
+      reject(new Error('Body read timed out'))
+    }, timeoutMs)
     req.on('data', c => {
       size += c.length
-      if (size > maxBytes) { req.destroy(); return reject(new Error('Body too large')) }
+      if (size > maxBytes) { clearTimeout(timer); req.destroy(); return reject(new Error('Body too large')) }
       chunks.push(c)
     })
-    req.on('end', () => resolve(Buffer.concat(chunks).toString()))
-    req.on('error', reject)
+    req.on('end', () => { clearTimeout(timer); resolve(Buffer.concat(chunks).toString()) })
+    req.on('error', (e) => { clearTimeout(timer); reject(e) })
   })
 }
 
 // ─── Concurrency pool — each ping runs in an isolated child process ──
 // Token is passed via env to the forked child only (never in parent's env).
 // Concurrency is limited by available RAM (~150MB per child + SDK + CLI).
-const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_PINGS || '6', 10)
-const MAX_QUEUE = parseInt(process.env.MAX_PING_QUEUE || '20', 10)
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_PINGS || '2', 10)
+const MAX_QUEUE = parseInt(process.env.MAX_PING_QUEUE || '5', 10)
 let activeCount = 0
 const waitQueue = []
 
@@ -113,6 +118,8 @@ async function executePing(token) {
       if (!settled) {
         settled = true
         child.kill('SIGTERM')
+        // SIGKILL fallback — if SDK doesn't exit gracefully within 3s, force kill
+        setTimeout(() => { try { child.kill('SIGKILL') } catch {} }, 3000)
         resolve({ success: false, error: 'Ping timed out' })
       }
     }, 25000)
@@ -303,7 +310,7 @@ const server = http.createServer(async (req, res) => {
     try {
       result = await withConcurrencyLimit(async () => {
         try {
-          const { stdout } = await execFileAsync('npx', ['@anthropic-ai/claude-code', '-p', 'reply pong', '--output-format', 'json'], {
+          const { stdout } = await execFileAsync('./node_modules/.bin/claude', ['-p', 'reply pong', '--output-format', 'json'], {
             env: { ...CHILD_ENV, CLAUDE_CODE_OAUTH_TOKEN: token },
             timeout: 25000,
             encoding: 'utf8',

@@ -37,9 +37,13 @@ function json(data, status, headers) {
   })
 }
 
-async function parseJSON(request) {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function parseJSON(request, maxBytes = 65536) {
   try {
-    return await request.json()
+    const text = await request.text()
+    if (text.length > maxBytes) return null
+    return JSON.parse(text)
   } catch {
     return null
   }
@@ -55,6 +59,15 @@ export default {
       return new Response(null, { status: 204, headers })
     }
 
+    try {
+      return await this._handleRequest(request, env, headers)
+    } catch (e) {
+      console.error('Unhandled Worker error:', e.message || String(e))
+      return json({ error: 'Internal server error' }, 500, headers)
+    }
+  },
+
+  async _handleRequest(request, env, headers) {
     const url = new URL(request.url)
     const route = `${request.method} ${url.pathname}`
 
@@ -66,8 +79,6 @@ export default {
 
     // Connect flow: CLI starts a session
     if (route === 'POST /api/connect/start') {
-      const cl = parseInt(request.headers.get('content-length') || '0', 10)
-      if (cl > 65536) return json({ error: 'Body too large' }, 413, headers)
       return connectStart(request, env, headers)
     }
 
@@ -78,14 +89,12 @@ export default {
         return json({ error: 'Too many requests' }, 429, headers)
       }
       const sessionId = url.searchParams.get('session')
-      if (!sessionId) return json({ error: 'Missing session param' }, 400, headers)
+      if (!sessionId || !UUID_RE.test(sessionId)) return json({ error: 'Invalid session param' }, 400, headers)
       return connectPoll(env, sessionId, headers)
     }
 
     // Connect flow: CLI sends token after approval
     if (route === 'POST /api/connect/complete') {
-      const cl = parseInt(request.headers.get('content-length') || '0', 10)
-      if (cl > 65536) return json({ error: 'Body too large' }, 413, headers)
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
       if (!await rateLimit(env, `ratelimit:complete:${ip}`, 10, 60)) {
         return json({ error: 'Too many requests' }, 429, headers)
@@ -117,6 +126,9 @@ export default {
         const body = await parseJSON(request)
         if (!body) return json({ error: 'Invalid JSON body' }, 400, headers)
 
+        if (!body.schedule && !body.timezone) {
+          return json({ error: 'Must provide schedule or timezone' }, 400, headers)
+        }
         if (body.schedule) {
           const err = validateSchedule(body.schedule)
           if (err) return json({ error: err }, 400, headers)
@@ -130,14 +142,14 @@ export default {
 
       case 'POST /api/pause': {
         const body = await parseJSON(request)
-        if (!body) return json({ error: 'Invalid JSON body' }, 400, headers)
+        if (!body || typeof body.paused !== 'boolean') return json({ error: 'paused must be a boolean' }, 400, headers)
         return proxyToDO(stub, '/toggle-pause', 'POST', body, headers)
       }
 
       // Connect flow: dashboard approves a session
       case 'POST /api/connect/approve': {
         const body = await parseJSON(request)
-        if (!body?.sessionId) return json({ error: 'Missing sessionId' }, 400, headers)
+        if (!body?.sessionId || !UUID_RE.test(body.sessionId)) return json({ error: 'Invalid sessionId' }, 400, headers)
         if (!body?.code) return json({ error: 'Missing verification code' }, 400, headers)
         return connectApprove(env, userId, body.sessionId, body.code, headers)
       }
@@ -297,8 +309,8 @@ async function connectComplete(request, env, headers) {
   if (!body) return json({ error: 'Invalid JSON body' }, 400, headers)
 
   const { sessionId, setupToken } = body
-  if (!sessionId || !setupToken) {
-    return json({ error: 'Missing sessionId or setupToken' }, 400, headers)
+  if (!sessionId || !UUID_RE.test(sessionId) || !setupToken) {
+    return json({ error: 'Missing or invalid sessionId or setupToken' }, 400, headers)
   }
   if (typeof setupToken !== 'string' || setupToken.length > 512) {
     return json({ error: 'Invalid token' }, 400, headers)

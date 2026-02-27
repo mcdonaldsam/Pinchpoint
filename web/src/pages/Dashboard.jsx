@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth, useClerk, UserButton } from '@clerk/clerk-react'
 import { apiFetch } from '../lib/api'
@@ -63,14 +63,14 @@ export default function Dashboard() {
     fetchStatus()
   }, [fetchStatus])
 
-  async function handleScheduleSave(schedule, timezone) {
+  const handleScheduleSave = useCallback(async (schedule, timezone) => {
     // Error propagates to ScheduleGrid's catch for user-facing feedback
     await apiFetch('/api/schedule', {
       method: 'PUT',
       body: JSON.stringify({ schedule, timezone }),
     }, getToken)
     await fetchStatus()
-  }
+  }, [getToken, fetchStatus])
 
   const [pinching, setPinching] = useState(false)
 

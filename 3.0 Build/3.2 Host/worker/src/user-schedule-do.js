@@ -2,7 +2,7 @@
 // Handles schedule storage, alarm-based ping scheduling, retry logic, token health
 
 import { decryptToken, encryptToken, signPingRequest, deriveUserKey } from './crypto.js'
-import { sendDisconnectNotification } from './email.js'
+import { sendDisconnectNotification, sendAutoPauseNotification } from './email.js'
 import { normalizeSchedule } from './validate.js'
 
 // Strip tokens from error messages to prevent leaks in logs
@@ -47,9 +47,11 @@ export class UserScheduleDO {
 
   /**
    * Execute a ping — used by both alarm() and test-ping endpoint.
+   * @param {object} opts
+   * @param {boolean} opts.updateHealth - Whether to update health state machine (false for test pings)
    * Returns { step, error, ... } object for diagnostics when called from test-ping.
    */
-  async executePing() {
+  async executePing({ updateHealth = true } = {}) {
     const paused = await this.state.storage.get('paused')
     if (paused) return { step: 'paused', error: 'Schedule is paused' }
 
@@ -116,7 +118,7 @@ export class UserScheduleDO {
       pingError = sanitizeError(e.message || String(e))
     }
 
-    await this.handlePingResult(success, rateLimitInfo)
+    if (updateHealth) await this.handlePingResult(success, rateLimitInfo)
 
     return {
       step: 'completed',
@@ -163,6 +165,11 @@ export class UserScheduleDO {
       // Auto-pause — stop retrying
       await this.state.storage.put('paused', true)
       await this.state.storage.put('tokenHealth', 'red')
+      // Notify user of auto-pause
+      const email = await this.state.storage.get('email')
+      if (email && this.env.RESEND_API_KEY) {
+        sendAutoPauseNotification(this.env, email)
+      }
     } else if (newFailures >= 3) {
       await this.state.storage.put('tokenHealth', 'yellow')
       // Retry in 2 minutes
@@ -278,7 +285,7 @@ export class UserScheduleDO {
       return json({ error: 'Please wait 60 seconds between test pings' }, 429)
     }
     await this.state.storage.put('lastTestPing', Date.now())
-    const result = await this.executePing()
+    const result = await this.executePing({ updateHealth: false })
     return json(result)
   }
 

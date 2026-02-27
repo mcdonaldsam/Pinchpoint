@@ -11,6 +11,16 @@ function sanitizeError(msg) {
   return msg.replace(TOKEN_PATTERN, 'sk-ant-***REDACTED***')
 }
 
+function sendResult(result) {
+  if (typeof process.send === 'function') {
+    process.send(result)
+  } else {
+    // Running directly (not forked) — log result and exit
+    console.error('ping-worker: must be run as forked child process')
+    process.exit(1)
+  }
+}
+
 async function run() {
   let fiveHourInfo = null
   try {
@@ -23,13 +33,13 @@ async function run() {
         fiveHourInfo = msg.rate_limit_info
       }
     }
-    process.send({
+    sendResult({
       success: true,
       rateLimitInfo: fiveHourInfo,
       rateLimits: fiveHourInfo ? { five_hour: fiveHourInfo } : {},
     })
   } catch (e) {
-    process.send({ success: false, error: sanitizeError(e.message || String(e)) })
+    sendResult({ success: false, error: sanitizeError(e.message || String(e)) })
   } finally {
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   }

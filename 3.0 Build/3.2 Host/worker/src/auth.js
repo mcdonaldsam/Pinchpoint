@@ -84,9 +84,9 @@ export async function verifyClerkSession(request, env) {
     // Issuer check (required)
     if (!payload.iss || payload.iss !== `https://${clerkDomain}`) return null
 
-    // Authorized party check — fail-closed (require publishable key to be configured)
+    // Authorized party check — fail-closed (require both config and claim)
     if (!env.CLERK_PUBLISHABLE_KEY) return null
-    if (payload.azp && payload.azp !== env.CLERK_PUBLISHABLE_KEY) return null
+    if (!payload.azp || payload.azp !== env.CLERK_PUBLISHABLE_KEY) return null
 
     // Audience check — reject tokens intended for a different application
     if (payload.aud) {

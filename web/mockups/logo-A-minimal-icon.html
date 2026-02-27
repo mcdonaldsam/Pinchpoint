@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logo Option A — Minimal Icon Mark</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fafaf9; color: #1c1917; }
+  .header { text-align: center; padding: 48px 24px 24px; }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { color: #78716c; margin-top: 8px; font-size: 15px; }
+  .section { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+  .section h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #44403c; border-bottom: 1px solid #e7e5e4; padding-bottom: 8px; }
+  .row { display: flex; align-items: center; gap: 40px; flex-wrap: wrap; margin-bottom: 32px; }
+  .variant { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .variant span { font-size: 12px; color: #a8a29e; }
+  .dark-bg { background: #1c1917; border-radius: 12px; padding: 32px 48px; display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
+  .nav-demo { display: flex; align-items: center; gap: 10px; padding: 16px 24px; background: white; border-radius: 12px; border: 1px solid #e7e5e4; }
+  .nav-demo .wordmark { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; color: #1c1917; }
+  .nav-demo-dark { background: #1c1917; border-color: #292524; }
+  .nav-demo-dark .wordmark { color: #fafaf9; }
+  .favicon-demo { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: white; border-radius: 8px; border: 1px solid #e7e5e4; }
+  .favicon-demo .tab-text { font-size: 13px; color: #57534e; }
+  .favicon-box { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Option A — Minimal Icon Mark</h1>
+  <p>Clean geometric symbol: two lines converging to a pinch point. Works at every size.</p>
+</div>
+
+<!-- Variant 1: The Pinch (V-shape with dot) -->
+<div class="section">
+  <h2>A1 — "The Pinch" (converging lines + dot)</h2>
+  <div class="row">
+    <div class="variant">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669" rx="8"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="3" fill="white"/>
+      </svg>
+      <span>64px — emerald</span>
+    </div>
+    <div class="variant">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="3" fill="white"/>
+      </svg>
+      <span>48px</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="3.5" fill="white"/>
+      </svg>
+      <span>32px</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="5" fill="white"/>
+      </svg>
+      <span>16px (favicon)</span>
+    </div>
+  </div>
+
+  <!-- Nav demo -->
+  <div class="row">
+    <div class="nav-demo">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="3.5" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+    <div class="nav-demo nav-demo-dark">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="44" r="3.5" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+  </div>
+
+  <!-- Favicon tab demo -->
+  <div class="row">
+    <div class="favicon-demo">
+      <div class="favicon-box">
+        <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" fill="#059669"/>
+          <path d="M18 20 L32 40 L46 20" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="32" cy="44" r="5" fill="white"/>
+        </svg>
+      </div>
+      <span class="tab-text">pinchpoint — Start your Claude window on schedule</span>
+    </div>
+  </div>
+</div>
+
+<!-- Variant 2: The Hourglass Pinch -->
+<div class="section">
+  <h2>A2 — "Hourglass Pinch" (time + pinch combined)</h2>
+  <div class="row">
+    <div class="variant">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="3" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="2.5" fill="white"/>
+      </svg>
+      <span>64px — emerald</span>
+    </div>
+    <div class="variant">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="3" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="2.5" fill="white"/>
+      </svg>
+      <span>48px</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+      </svg>
+      <span>32px</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="5" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="4" fill="white"/>
+      </svg>
+      <span>16px (favicon)</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="nav-demo">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+    <div class="nav-demo nav-demo-dark">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <path d="M20 16 L44 16 L34 32 L44 48 L20 48 L30 32 Z" stroke="white" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+  </div>
+</div>
+
+<!-- Variant 3: Timer with pinch -->
+<div class="section">
+  <h2>A3 — "Timer Pinch" (clock face with pinch hands)</h2>
+  <div class="row">
+    <div class="variant">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="2.5" fill="none"/>
+        <!-- Clock hands converging like a pinch -->
+        <line x1="32" y1="32" x2="32" y2="14" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="44" y2="26" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+        <!-- Small pinch marks at top -->
+        <line x1="32" y1="6" x2="32" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>64px — emerald</span>
+    </div>
+    <div class="variant">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="2.5" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="14" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="44" y2="26" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+        <line x1="32" y1="6" x2="32" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>48px</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="3" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="14" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="44" y2="26" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3.5" fill="white"/>
+      </svg>
+      <span>32px</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="20" stroke="white" stroke-width="4" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="16" stroke="white" stroke-width="5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="42" y2="26" stroke="white" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="4" fill="white"/>
+      </svg>
+      <span>16px (favicon)</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="nav-demo">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="3" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="14" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="44" y2="26" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3.5" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+    <div class="nav-demo nav-demo-dark">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="#059669"/>
+        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="3" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="14" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="44" y2="26" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3.5" fill="white"/>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+  </div>
+</div>
+
+<!-- Variant 4: Simple P with pinch -->
+<div class="section">
+  <h2>A4 — "Pinch P" (letter P with pinch notch)</h2>
+  <div class="row">
+    <div class="variant">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="#059669">P</text>
+        <!-- Pinch notch cut into the P -->
+        <path d="M36 28 L42 32 L36 36" stroke="#1c1917" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>64px — stone/emerald</span>
+    </div>
+    <div class="variant">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="#059669">P</text>
+        <path d="M36 28 L42 32 L36 36" stroke="#1c1917" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>48px</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="#059669">P</text>
+        <path d="M36 28 L42 32 L36 36" stroke="#1c1917" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>32px</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="#059669">P</text>
+      </svg>
+      <span>16px (favicon)</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="nav-demo">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="#059669">P</text>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+    <div class="nav-demo nav-demo-dark">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <text x="32" y="46" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="40" font-weight="700" fill="white">P</text>
+      </svg>
+      <span class="wordmark">pinchpoint</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

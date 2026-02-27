@@ -4,7 +4,7 @@
 // then links it to PinchPoint via polling-based approval.
 
 import { createServer } from 'node:http'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 
 const API_URL = process.env.PINCHPOINT_API_URL || 'https://api.pinchpoint.dev'
@@ -55,7 +55,7 @@ async function performOAuthFlow() {
   const state = randomBytes(32).toString('base64url')
 
   // Pre-generate PinchPoint verification code + hash (needed inside callback)
-  const verificationCode = String(Math.floor(1000 + Math.random() * 9000))
+  const verificationCode = String(randomInt(1000, 10000))
   const codeHash = createHash('sha256').update(verificationCode).digest('hex')
 
   return new Promise((resolve, reject) => {

@@ -8,8 +8,8 @@ const HEALTH_COLORS = {
 
 const HEALTH_LABELS = {
   green: 'Healthy',
-  yellow: 'Failing — check your token',
-  red: 'Expired — reconnect required',
+  yellow: 'Failing - check your token',
+  red: 'Expired - reconnect required',
 }
 
 function formatTime12(time24) {
@@ -113,7 +113,7 @@ export default function StatusPanel({ status }) {
         {status.lastPing && (
           <Row label="Last pinch">
             <span className={`text-sm ${status.lastPing.success ? 'text-emerald-600' : 'text-red-600'}`}>
-              {status.lastPing.success ? '' : 'Failed — '}
+              {status.lastPing.success ? '' : 'Failed: '}
               {formatTime(status.lastPing.time, status.timezone)}
               <span className="text-stone-400 ml-1">({formatRelative(status.lastPing.time)})</span>
             </span>
@@ -152,13 +152,4 @@ function Row({ label, children }) {
 
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
-}
-
-function Spinner() {
-  return (
-    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  )
 }

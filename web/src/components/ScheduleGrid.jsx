@@ -6,9 +6,7 @@ const DAY_LABELS = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 
 
 const TIME_OPTIONS = []
 for (let h = 0; h < 24; h++) {
-  for (const m of ['00', '15', '30', '45']) {
-    TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:${m}`)
-  }
+  TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
 }
 
 const HOUR_LABELS = { 0: '12am', 3: '3am', 6: '6am', 9: '9am', 12: '12pm', 15: '3pm', 18: '6pm', 21: '9pm' }
@@ -51,6 +49,43 @@ function normalizeSchedule(schedule) {
     else out[day] = null
   }
   return out
+}
+
+/**
+ * Check for cross-day overlap: does the last enabled roll's 5h window
+ * on one day bleed into the next enabled day's first roll?
+ * Returns { dayA, dayB, endTime } or null if no overlap.
+ */
+function checkCrossDayOverlap(schedule) {
+  const enabledDays = DAYS.filter(d => schedule[d] && Array.isArray(schedule[d]))
+  for (let idx = 0; idx < enabledDays.length; idx++) {
+    const dayA = enabledDays[idx]
+    const dayB = enabledDays[(idx + 1) % enabledDays.length]
+    if (dayA === dayB) continue
+
+    const rollsA = schedule[dayA]
+    const rollsB = schedule[dayB]
+    const roll1A = timeToMinutes(rollsA[0].time)
+
+    let lastEnabledA = rollsA[0]
+    for (const r of rollsA) { if (r.enabled) lastEnabledA = r }
+    const lastMinA = timeToMinutes(lastEnabledA.time)
+    const isWrapped = lastMinA < roll1A
+    const lastAbsolute = lastMinA + (isWrapped ? 1440 : 0)
+
+    const firstMinB = timeToMinutes(rollsB[0].time)
+    const idxA = DAYS.indexOf(dayA)
+    const idxB = DAYS.indexOf(dayB)
+    const dayGap = (idxB - idxA + 7) % 7 || 7
+    const firstAbsolute = firstMinB + dayGap * 1440
+
+    if (lastAbsolute + 300 > firstAbsolute) {
+      const endMin = (lastAbsolute + 300) % 1440
+      const endTime = minutesToTime(endMin)
+      return { dayA, dayB, endTime }
+    }
+  }
+  return null
 }
 
 // ─── Timezone helpers ─────────────────────────────────────────
@@ -711,9 +746,10 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
     if (initialTz && !dirty) setTimezone(initialTz)
   }, [initialTz, dirty])
 
-  // Auto-save: debounce 800ms after any change
+  // Auto-save: debounce 800ms after any change (skip if cross-day overlap)
   useEffect(() => {
     if (!dirty) return
+    if (checkCrossDayOverlap(schedule)) return
     latestRef.current = { schedule, timezone }
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
@@ -743,6 +779,7 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
     if (!schedule[d]) return sum
     return sum + schedule[d].filter(r => r.enabled).length
   }, 0)
+  const overlap = useMemo(() => checkCrossDayOverlap(schedule), [schedule])
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -765,10 +802,20 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
             ))}
           </div>
         </div>
+        <p className="text-[11px] text-stone-400 mt-2">Claude rounds windows to the nearest hour, so slots are hourly.</p>
       </div>
 
       {/* Heatmap — the only editing surface */}
       <WeekHeatmap schedule={schedule} onUpdateDay={updateDay} />
+
+      {/* Cross-day overlap warning */}
+      {overlap && (
+        <div className="mx-5 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-[11px] text-amber-700">
+            <span className="font-semibold capitalize">{overlap.dayB}</span>'s first pinch overlaps <span className="capitalize">{overlap.dayA}</span>'s last 5h window (ends {formatTime12(overlap.endTime)}). Move <span className="capitalize">{overlap.dayB}</span> to {formatTime12(overlap.endTime)} or later.
+          </p>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="px-5 py-3 border-t border-stone-100 flex items-center justify-between">

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logo Option C — Stylized Wordmark</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fafaf9; color: #1c1917; }
+  .header { text-align: center; padding: 48px 24px 24px; }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header p { color: #78716c; margin-top: 8px; font-size: 15px; }
+  .section { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+  .section h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #44403c; border-bottom: 1px solid #e7e5e4; padding-bottom: 8px; }
+  .row { display: flex; align-items: center; gap: 40px; flex-wrap: wrap; margin-bottom: 32px; }
+  .variant { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .variant span { font-size: 12px; color: #a8a29e; }
+  .dark-row { background: #1c1917; border-radius: 16px; padding: 32px 40px; display: flex; align-items: center; gap: 40px; flex-wrap: wrap; margin-bottom: 32px; }
+  .nav-demo { display: flex; align-items: center; gap: 10px; padding: 16px 24px; background: white; border-radius: 12px; border: 1px solid #e7e5e4; }
+  .nav-demo-dark { background: #1c1917; border-color: #292524; }
+  .favicon-demo { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: white; border-radius: 8px; border: 1px solid #e7e5e4; }
+  .favicon-demo .tab-text { font-size: 13px; color: #57534e; }
+
+  /* C1: Pinch in the middle */
+  .wm-c1 {
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: #1c1917;
+  }
+  .wm-c1 .pinch {
+    display: inline-block;
+    transform: scaleX(0.6);
+    letter-spacing: -3px;
+    color: #059669;
+  }
+
+  /* C2: Clock dot on i */
+  .wm-c2 {
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #1c1917;
+    position: relative;
+  }
+
+  /* C3: Gradient pinch */
+  .wm-c3 {
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(90deg, #1c1917 0%, #059669 40%, #059669 60%, #1c1917 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Option C — Stylized Wordmark</h1>
+  <p>The name IS the logo. Typography-driven with clever visual twists.</p>
+</div>
+
+<!-- C1: Letters pinch in the middle -->
+<div class="section">
+  <h2>C1 — "The Squeeze" (letters narrow at the pinch point)</h2>
+  <div class="row">
+    <div class="variant">
+      <div style="font-size: 48px;" class="wm-c1">
+        pinch<span class="pinch">po</span>int
+      </div>
+      <span>Hero size — the "po" pinches inward</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="variant">
+      <div style="font-size: 32px;" class="wm-c1">
+        pinch<span class="pinch">po</span>int
+      </div>
+      <span>Heading size</span>
+    </div>
+    <div class="variant">
+      <div style="font-size: 18px;" class="wm-c1">
+        pinch<span class="pinch">po</span>int
+      </div>
+      <span>Nav size</span>
+    </div>
+  </div>
+  <div class="dark-row">
+    <div class="variant">
+      <div style="font-size: 48px; color: #fafaf9;" class="wm-c1">
+        pinch<span class="pinch" style="color: #34d399;">po</span>int
+      </div>
+      <span style="color: #78716c;">On dark</span>
+    </div>
+    <div class="variant">
+      <div style="font-size: 18px; color: #fafaf9;" class="wm-c1">
+        pinch<span class="pinch" style="color: #34d399;">po</span>int
+      </div>
+      <span style="color: #78716c;">Nav on dark</span>
+    </div>
+  </div>
+  <!-- Favicon for C1 -->
+  <div class="row">
+    <div class="variant">
+      <span>Favicon options for C1:</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <text x="32" y="45" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="800" fill="white">pp</text>
+      </svg>
+      <span>"pp" favicon</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#1c1917"/>
+        <text x="32" y="45" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="800" fill="#059669">pp</text>
+      </svg>
+      <span>"pp" dark favicon</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <text x="32" y="46" text-anchor="middle" font-family="Inter, sans-serif" font-size="40" font-weight="800" fill="white">pp</text>
+      </svg>
+      <span>16px</span>
+    </div>
+  </div>
+</div>
+
+<!-- C2: Clock dot on the i -->
+<div class="section">
+  <h2>C2 — "Clock Dot" (the dot on the 'i' is a tiny clock)</h2>
+  <div class="row">
+    <div class="variant">
+      <svg width="520" height="60" viewBox="0 0 520 60">
+        <text x="0" y="48" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#1c1917" letter-spacing="-1">p</text>
+        <!-- i without dot -->
+        <text x="32" y="48" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#1c1917" letter-spacing="-1">i</text>
+        <!-- Clock as i-dot -->
+        <circle cx="42" cy="10" r="6" fill="#059669"/>
+        <line x1="42" y1="10" x2="42" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="42" y1="10" x2="45" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+
+        <text x="52" y="48" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#1c1917" letter-spacing="-1">nchpo</text>
+
+        <!-- Second i without dot -->
+        <text x="290" y="48" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#1c1917" letter-spacing="-1">i</text>
+        <!-- Clock as second i-dot -->
+        <circle cx="300" cy="10" r="6" fill="#059669"/>
+        <line x1="300" y1="10" x2="300" y2="6" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="300" y1="10" x2="303" y2="8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+
+        <text x="310" y="48" font-family="Inter, sans-serif" font-size="48" font-weight="700" fill="#1c1917" letter-spacing="-1">nt</text>
+      </svg>
+      <span>Hero size — i-dots are tiny clocks</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="variant">
+      <svg width="300" height="36" viewBox="0 0 300 36">
+        <text x="0" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#1c1917" letter-spacing="-0.5">p</text>
+        <text x="18" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#1c1917" letter-spacing="-0.5">i</text>
+        <circle cx="24" cy="6" r="4" fill="#059669"/>
+        <line x1="24" y1="6" x2="24" y2="3.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <line x1="24" y1="6" x2="26" y2="4.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <text x="31" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#1c1917" letter-spacing="-0.5">nchpo</text>
+        <text x="170" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#1c1917" letter-spacing="-0.5">i</text>
+        <circle cx="176" cy="6" r="4" fill="#059669"/>
+        <line x1="176" y1="6" x2="176" y2="3.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <line x1="176" y1="6" x2="178" y2="4.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <text x="183" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#1c1917" letter-spacing="-0.5">nt</text>
+      </svg>
+      <span>Nav size</span>
+    </div>
+  </div>
+  <div class="dark-row">
+    <div class="variant">
+      <svg width="300" height="36" viewBox="0 0 300 36">
+        <text x="0" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#fafaf9" letter-spacing="-0.5">p</text>
+        <text x="18" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#fafaf9" letter-spacing="-0.5">i</text>
+        <circle cx="24" cy="6" r="4" fill="#34d399"/>
+        <line x1="24" y1="6" x2="24" y2="3.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <line x1="24" y1="6" x2="26" y2="4.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <text x="31" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#fafaf9" letter-spacing="-0.5">nchpo</text>
+        <text x="170" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#fafaf9" letter-spacing="-0.5">i</text>
+        <circle cx="176" cy="6" r="4" fill="#34d399"/>
+        <line x1="176" y1="6" x2="176" y2="3.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <line x1="176" y1="6" x2="178" y2="4.5" stroke="white" stroke-width="1" stroke-linecap="round"/>
+        <text x="183" y="30" font-family="Inter, sans-serif" font-size="28" font-weight="700" fill="#fafaf9" letter-spacing="-0.5">nt</text>
+      </svg>
+      <span style="color: #78716c;">On dark</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="variant">
+      <span>Favicon options for C2:</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <!-- Stylized clock -->
+        <circle cx="32" cy="32" r="18" stroke="white" stroke-width="3" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="42" y2="28" stroke="white" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3" fill="white"/>
+      </svg>
+      <span>clock favicon</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+        <circle cx="32" cy="32" r="18" stroke="white" stroke-width="4" fill="none"/>
+        <line x1="32" y1="32" x2="32" y2="20" stroke="white" stroke-width="4" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="42" y2="28" stroke="white" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="4" fill="white"/>
+      </svg>
+      <span>16px</span>
+    </div>
+  </div>
+</div>
+
+<!-- C3: Gradient wordmark -->
+<div class="section">
+  <h2>C3 — "Gradient Pinch" (color flows through the word)</h2>
+  <div class="row">
+    <div class="variant">
+      <div style="font-size: 48px;" class="wm-c3">pinchpoint</div>
+      <span>Hero — emerald blooms from the center</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="variant">
+      <div style="font-size: 32px;" class="wm-c3">pinchpoint</div>
+      <span>Heading</span>
+    </div>
+    <div class="variant">
+      <div style="font-size: 18px;" class="wm-c3">pinchpoint</div>
+      <span>Nav</span>
+    </div>
+  </div>
+  <div class="dark-row">
+    <div class="variant">
+      <div style="font-size: 48px; font-weight: 900; letter-spacing: -1px; background: linear-gradient(90deg, #fafaf9 0%, #34d399 40%, #34d399 60%, #fafaf9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">pinchpoint</div>
+      <span style="color: #78716c;">On dark</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="variant">
+      <span>Favicon uses same gradient concept:</span>
+    </div>
+    <div class="variant">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#1c1917"/>
+            <stop offset="40%" stop-color="#059669"/>
+            <stop offset="60%" stop-color="#059669"/>
+            <stop offset="100%" stop-color="#1c1917"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#grad1)"/>
+        <text x="32" y="45" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="900" fill="white">pp</text>
+      </svg>
+      <span>gradient favicon</span>
+    </div>
+    <div class="variant">
+      <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="grad2" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#1c1917"/>
+            <stop offset="40%" stop-color="#059669"/>
+            <stop offset="60%" stop-color="#059669"/>
+            <stop offset="100%" stop-color="#1c1917"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#grad2)"/>
+        <text x="32" y="46" text-anchor="middle" font-family="Inter, sans-serif" font-size="40" font-weight="900" fill="white">pp</text>
+      </svg>
+      <span>16px</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

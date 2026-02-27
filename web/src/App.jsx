@@ -6,6 +6,7 @@ import Connect from './pages/Connect'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import Security from './pages/Security'
+import Disclaimer from './pages/Disclaimer'
 import SchedulePreview from './pages/SchedulePreview'
 
 function ProtectedRoute({ children }) {
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/security" element={<Security />} />
+      <Route path="/disclaimer" element={<Disclaimer />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/connect" element={<ProtectedRoute><Connect /></ProtectedRoute>} />
       <Route path="/schedule-preview" element={<SchedulePreview />} />

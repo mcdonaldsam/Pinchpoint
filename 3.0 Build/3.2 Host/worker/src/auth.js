@@ -41,6 +41,9 @@ export async function verifyClerkSession(request, env) {
     const header = JSON.parse(atob(headerB64.replace(/-/g, '+').replace(/_/g, '/')))
     const kid = header.kid
 
+    // Reject non-RS256 algorithms (defense in depth — importKey also pins to RSASSA-PKCS1-v1_5)
+    if (header.alg !== 'RS256') return null
+
     // Fetch JWKS and match kid
     let jwks = await fetchJWKS(clerkDomain)
     let jwk = jwks.keys.find(k => k.kid === kid)
@@ -81,8 +84,9 @@ export async function verifyClerkSession(request, env) {
     // Issuer check (required)
     if (!payload.iss || payload.iss !== `https://${clerkDomain}`) return null
 
-    // Authorized party check — Clerk puts the publishable key in azp (not the domain)
-    if (payload.azp && env.CLERK_PUBLISHABLE_KEY && payload.azp !== env.CLERK_PUBLISHABLE_KEY) return null
+    // Authorized party check — fail-closed (require publishable key to be configured)
+    if (!env.CLERK_PUBLISHABLE_KEY) return null
+    if (payload.azp && payload.azp !== env.CLERK_PUBLISHABLE_KEY) return null
 
     // Audience check — reject tokens intended for a different application
     if (payload.aud) {

@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [disconnected, setDisconnected] = useState(false)
+  const [showUnpauseWarning, setShowUnpauseWarning] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -86,6 +87,12 @@ export default function Dashboard() {
   }
 
   async function handleTogglePause() {
+    // Warn before unpausing with a likely-expired token
+    if (status.paused && status.tokenHealth === 'red' && !showUnpauseWarning) {
+      setShowUnpauseWarning(true)
+      return
+    }
+    setShowUnpauseWarning(false)
     try {
       await apiFetch('/api/pause', {
         method: 'POST',
@@ -140,7 +147,7 @@ export default function Dashboard() {
         {/* Stale data warning when poll fails after initial load */}
         {error && status && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-4 flex items-center justify-between">
-            <span className="text-amber-700 text-sm">Unable to refresh — data may be stale</span>
+            <span className="text-amber-700 text-sm">Unable to refresh. Data may be stale</span>
             <button onClick={fetchStatus} className="text-xs text-amber-600 underline cursor-pointer">Retry</button>
           </div>
         )}
@@ -173,6 +180,29 @@ export default function Dashboard() {
             )}
 
             <StatusPanel status={status} />
+
+            {/* Unpause warning for expired token */}
+            {showUnpauseWarning && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+                <p className="text-red-700 text-sm mb-3">
+                  Your token appears expired. Unpausing will likely fail again. Consider reconnecting first.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={handleTogglePause}
+                    className="px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    Unpause anyway
+                  </button>
+                  <button
+                    onClick={() => setShowUnpauseWarning(false)}
+                    className="px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Action buttons */}
             {status.hasCredentials && (

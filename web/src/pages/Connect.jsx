@@ -7,7 +7,10 @@ export default function Connect() {
   const [searchParams] = useSearchParams()
   const sessionId = searchParams.get('session')
 
-  if (sessionId) {
+  // Validate UUID format before sending to API (defense in depth)
+  const isValidUUID = sessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)
+
+  if (isValidUUID) {
     return <ApproveSession sessionId={sessionId} />
   }
 
@@ -81,7 +84,7 @@ function ApproveSession({ sessionId }) {
             </div>
             <h1 className="text-xl font-bold mb-2">Connected!</h1>
             <p className="text-stone-500 text-sm mb-6">
-              You can close this tab. Check your terminal — it should confirm the connection.
+              You can close this tab. Check your terminal to confirm the connection.
             </p>
             <Link
               to="/dashboard"

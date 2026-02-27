@@ -15,18 +15,18 @@ export default function Privacy() {
           <Section title="What we collect">
             <p>When you use pinchpoint, we store:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
-              <li><strong>Email address</strong> — provided via your Clerk account, used for ping notifications and account recovery.</li>
-              <li><strong>Claude OAuth token</strong> — provided via <code className="bg-stone-100 px-1 py-0.5 rounded text-xs">npx pinchpoint connect</code>, used solely to execute your scheduled pings.</li>
-              <li><strong>Schedule preferences</strong> — which days/times you want pings, your timezone, and pause state.</li>
-              <li><strong>Ping history</strong> — success/failure status and window end time for your most recent ping.</li>
+              <li><strong>Email address</strong> from your Clerk account, used for ping notifications and account recovery.</li>
+              <li><strong>Claude OAuth token</strong> from <code className="bg-stone-100 px-1 py-0.5 rounded text-xs">npx pinchpoint connect</code>, used only to run your scheduled pings.</li>
+              <li><strong>Schedule preferences:</strong> which days/times you want pings, your timezone, and pause state.</li>
+              <li><strong>Ping history:</strong> success/failure status and window end time for your most recent ping.</li>
             </ul>
           </Section>
 
           <Section title="How we store it">
             <p>
               Your Claude token is encrypted at rest using AES-256-GCM with a per-user
-              derived key (HKDF). Each user's token has its own unique encryption key — there
-              is no shared secret. When a ping executes, the token is re-encrypted with a
+              derived key (HKDF). Each user's token has its own unique encryption key.
+              There is no shared secret. When a ping executes, the token is re-encrypted with a
               separate transit key before being sent to our ping service. Three isolated keys
               are used: at-rest encryption, transit encryption, and request signing.
               All user data is stored in Cloudflare Durable Objects with strong consistency guarantees.
@@ -36,28 +36,28 @@ export default function Privacy() {
           <Section title="Third-party services">
             <p>We use the following services to operate pinchpoint:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
-              <li><strong>Cloudflare</strong> (Workers, Durable Objects, Pages) — hosting, API, and data storage.</li>
-              <li><strong>Clerk</strong> — authentication and account management.</li>
-              <li><strong>Resend</strong> — email notifications (account and security alerts).</li>
-              <li><strong>Fly.io</strong> — runs the ping execution service that contacts Claude on your behalf.</li>
+              <li><strong>Cloudflare</strong> (Workers, Durable Objects, Pages) for hosting, API, and data storage.</li>
+              <li><strong>Clerk</strong> for authentication and account management.</li>
+              <li><strong>Resend</strong> for email notifications (account and security alerts).</li>
+              <li><strong>Fly.io</strong> runs the ping execution service that contacts Claude on your behalf.</li>
             </ul>
             <p className="mt-2">We do not sell, share, or provide your data to any other third parties.</p>
           </Section>
 
           <Section title="How we use your token">
             <p>
-              Your Claude token is used for one purpose: sending a minimal ping to Claude's API
-              at your scheduled times to start your 5-hour usage window. The token is decrypted
-              only at the moment of ping execution, transmitted securely to our ping service,
+              Your Claude token is used for one thing: sending a minimal ping to Claude's API
+              at your scheduled times to start your 5-hour usage window. The token is only
+              decrypted at the moment of ping execution, sent securely to our ping service,
               and never logged or stored in plaintext.
             </p>
           </Section>
 
           <Section title="Data retention">
             <p>
-              Your data is retained for as long as your account exists. When you delete your
-              account, all stored data — including your encrypted token, schedule, and ping
-              history — is permanently and immediately erased. There is no recovery period.
+              Your data is kept for as long as your account exists. When you delete your
+              account, everything (your encrypted token, schedule, and ping history) is
+              erased immediately. There is no recovery period.
             </p>
           </Section>
 
@@ -72,7 +72,7 @@ export default function Privacy() {
 
           <Section title="Contact">
             <p>
-              For privacy questions, email <a href="mailto:privacy@pinchpoint.dev" className="text-emerald-600 underline">privacy@pinchpoint.dev</a>.
+              For privacy questions, email <a href="mailto:sam.mcdonald.dev@gmail.com" className="text-emerald-600 underline">sam.mcdonald.dev@gmail.com</a>.
             </p>
           </Section>
         </div>

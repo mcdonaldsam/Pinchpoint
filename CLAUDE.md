@@ -236,7 +236,6 @@ Zero-dependency `npx pinchpoint connect`: performs its own OAuth flow with PKCE 
 ### Remaining Work
 - **Choose landing page design** — 15 variants (A-O) created, need to pick one and apply consistent styling
 - **npm publish** — Publish CLI package to npm registry (`npx pinchpoint connect`)
-- **End-to-end smoke test** — Verify first scheduled ping fires correctly
 
 ---
 

@@ -80,10 +80,11 @@ export default function Landing() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-lg mb-2">End-to-end encryption</h3>
+            <h3 className="font-semibold text-lg mb-2">Encrypted at every step</h3>
             <p className="text-stone-500">
-              AES-256 encryption with per-user derived keys. Your token is never
-              stored in plaintext — re-encrypted on every request.
+              Your token is encrypted with AES-256 using a key derived uniquely for
+              your account. It is re-encrypted with a separate key before every ping
+              and never stored or transmitted in plaintext.
             </p>
           </div>
           <div>
@@ -105,7 +106,7 @@ export default function Landing() {
           <span>·</span>
           <Link to="/security" className="hover:text-stone-600">Security</Link>
         </div>
-        pinchpoint is not affiliated with Anthropic.
+        <Link to="/disclaimer" className="hover:text-stone-600">pinchpoint is not affiliated with Anthropic.</Link>
       </footer>
     </div>
   )

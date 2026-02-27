@@ -33,7 +33,7 @@ function corsHeaders(env) {
 function json(data, status, headers) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', ...headers },
   })
 }
 
@@ -66,6 +66,8 @@ export default {
 
     // Connect flow: CLI starts a session
     if (route === 'POST /api/connect/start') {
+      const cl = parseInt(request.headers.get('content-length') || '0', 10)
+      if (cl > 65536) return json({ error: 'Body too large' }, 413, headers)
       return connectStart(request, env, headers)
     }
 
@@ -82,6 +84,8 @@ export default {
 
     // Connect flow: CLI sends token after approval
     if (route === 'POST /api/connect/complete') {
+      const cl = parseInt(request.headers.get('content-length') || '0', 10)
+      if (cl > 65536) return json({ error: 'Body too large' }, 413, headers)
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
       if (!await rateLimit(env, `ratelimit:complete:${ip}`, 10, 60)) {
         return json({ error: 'Too many requests' }, 429, headers)
@@ -295,6 +299,9 @@ async function connectComplete(request, env, headers) {
   const { sessionId, setupToken } = body
   if (!sessionId || !setupToken) {
     return json({ error: 'Missing sessionId or setupToken' }, 400, headers)
+  }
+  if (typeof setupToken !== 'string' || setupToken.length > 512) {
+    return json({ error: 'Invalid token' }, 400, headers)
   }
 
   // Verify session is approved

@@ -116,7 +116,7 @@ export class UserScheduleDO {
       pingError = sanitizeError(e.message || String(e))
     }
 
-    await this.handlePingResult(success, rateLimitInfo, rateLimits)
+    await this.handlePingResult(success, rateLimitInfo)
 
     return {
       step: 'completed',
@@ -124,7 +124,6 @@ export class UserScheduleDO {
       rateLimitInfo,
       rateLimits,
       pingError: pingError || undefined,
-      pingServiceUrl: this.env.PING_SERVICE_URL ? 'set' : 'MISSING',
     }
   }
 
@@ -180,7 +179,7 @@ export class UserScheduleDO {
 
   async setSchedule(request) {
     const { schedule, timezone } = await request.json()
-    if (schedule) await this.state.storage.put('schedule', schedule)
+    if (schedule) await this.state.storage.put('schedule', normalizeSchedule(schedule))
     if (timezone) await this.state.storage.put('timezone', timezone)
     await this.scheduleNextAlarm()
     return json({ ok: true })
@@ -274,6 +273,11 @@ export class UserScheduleDO {
   // ─── Test ping (force immediate execution) ─────────────────
 
   async testPing() {
+    const lastTest = await this.state.storage.get('lastTestPing')
+    if (lastTest && Date.now() - lastTest < 60_000) {
+      return json({ error: 'Please wait 60 seconds between test pings' }, 429)
+    }
+    await this.state.storage.put('lastTestPing', Date.now())
     const result = await this.executePing()
     return json(result)
   }
@@ -281,6 +285,11 @@ export class UserScheduleDO {
   // ─── Debug test ping (calls /test endpoint for stderr capture) ──
 
   async testPingDebug() {
+    const lastTest = await this.state.storage.get('lastTestPing')
+    if (lastTest && Date.now() - lastTest < 60_000) {
+      return json({ error: 'Please wait 60 seconds between test pings' }, 429)
+    }
+    await this.state.storage.put('lastTestPing', Date.now())
     const paused = await this.state.storage.get('paused')
     if (paused) return json({ step: 'paused', error: 'Schedule is paused' })
 
@@ -349,13 +358,6 @@ export class UserScheduleDO {
       schedule: normalizeSchedule(schedule || {}),
       timezone,
       tokenHealth,
-      secrets: {
-        ENCRYPTION_KEY: this.env.ENCRYPTION_KEY ? 'set' : 'MISSING',
-        PING_ENCRYPTION_KEY: this.env.PING_ENCRYPTION_KEY ? 'set' : 'MISSING',
-        PING_SECRET: this.env.PING_SECRET ? 'set' : 'MISSING',
-        PING_SERVICE_URL: this.env.PING_SERVICE_URL ? 'set' : 'MISSING',
-        RESEND_API_KEY: this.env.RESEND_API_KEY ? 'set' : 'MISSING',
-      },
     })
   }
 }

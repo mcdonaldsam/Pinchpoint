@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Token Expiry Notifications — Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #f5f5f4; }
+    .mockup-label {
+      font-family: system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #a8a29e;
+      margin-bottom: 12px;
+    }
+    .mockup-section {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .email-preview {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 440px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e7e5e4;
+      overflow: hidden;
+    }
+    .email-header {
+      background: #fafaf9;
+      border-bottom: 1px solid #e7e5e4;
+      padding: 12px 20px;
+      font-size: 12px;
+      color: #78716c;
+    }
+    .email-body {
+      padding: 28px 24px;
+    }
+  </style>
+</head>
+<body class="py-12">
+
+  <!-- Title -->
+  <div class="text-center mb-12">
+    <h1 class="text-2xl font-bold text-stone-900">Token Expiry Notifications</h1>
+    <p class="text-stone-400 text-sm mt-1">Dashboard banners + email alerts at 30 / 7 / 1 day(s) before expiry</p>
+  </div>
+
+  <!-- ──────────────────────────────────────────────── -->
+  <!-- SECTION 1: Dashboard Banners                     -->
+  <!-- ──────────────────────────────────────────────── -->
+
+  <div class="mockup-section mb-16">
+    <div class="mockup-label">Dashboard — 30 days remaining</div>
+
+    <!-- Simulated StatusPanel with expiry banner -->
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      <!-- NEW: Subtle info banner — 30 days -->
+      <div class="bg-stone-50 border-b border-stone-200 px-5 py-3 flex items-start gap-3">
+        <svg class="w-5 h-5 text-stone-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-stone-600">Your Claude token expires in 30 days</p>
+          <p class="text-xs text-stone-400 mt-0.5">
+            Run <code class="bg-stone-100 px-1 py-0.5 rounded text-[11px]">npx pinchpoint connect</code> to link a fresh token before it expires.
+          </p>
+        </div>
+      </div>
+
+      <!-- Countdown (existing) -->
+      <div class="p-6 text-center border-b border-stone-100">
+        <p class="text-sm text-stone-500 mb-1">Resets in</p>
+        <p class="text-5xl font-bold text-emerald-600 tracking-tight" style="font-variant-numeric: tabular-nums;">3h 42m 18s</p>
+        <p class="text-sm text-stone-400 mt-1">at 2:07 PM</p>
+      </div>
+
+      <!-- Status rows (existing) -->
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Last pinch</span>
+          <span class="text-sm text-emerald-600">10:25 AM <span class="text-stone-400 ml-1">(12m ago)</span></span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Next pinch</span>
+          <span class="text-sm text-stone-600">Tuesday at 9:00 AM</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup-section mb-16">
+    <div class="mockup-label">Dashboard — 7 days remaining</div>
+
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      <!-- NEW: Warning banner at top of panel -->
+      <div class="bg-amber-50 border-b border-amber-200 px-5 py-3 flex items-start gap-3">
+        <svg class="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-amber-900">Your Claude token expires in 7 days</p>
+          <p class="text-xs text-amber-700 mt-0.5">
+            Run <code class="bg-amber-100 px-1 py-0.5 rounded text-[11px]">npx pinchpoint connect</code> to link a fresh token before it expires.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-6 text-center border-b border-stone-100">
+        <p class="text-sm text-stone-500 mb-1">Resets in</p>
+        <p class="text-5xl font-bold text-emerald-600 tracking-tight" style="font-variant-numeric: tabular-nums;">4h 11m 03s</p>
+        <p class="text-sm text-stone-400 mt-1">at 3:22 PM</p>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Last pinch</span>
+          <span class="text-sm text-emerald-600">11:11 AM <span class="text-stone-400 ml-1">(just now)</span></span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Next pinch</span>
+          <span class="text-sm text-stone-600">Wednesday at 9:00 AM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup-section mb-16">
+    <div class="mockup-label">Dashboard — 1 day remaining (urgent)</div>
+
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      <!-- Urgent banner -->
+      <div class="bg-red-50 border-b border-red-200 px-5 py-3 flex items-start gap-3">
+        <svg class="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-red-900">Your Claude token expires tomorrow</p>
+          <p class="text-xs text-red-700 mt-0.5">
+            Pings will stop working after expiry. Run <code class="bg-red-100 px-1 py-0.5 rounded text-[11px]">npx pinchpoint connect</code> now to link a new token.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-6 text-center border-b border-stone-100">
+        <p class="text-sm text-stone-500 mb-1">Resets in</p>
+        <p class="text-5xl font-bold text-emerald-600 tracking-tight" style="font-variant-numeric: tabular-nums;">1h 05m 47s</p>
+        <p class="text-sm text-stone-400 mt-1">at 12:15 PM</p>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Last pinch</span>
+          <span class="text-sm text-emerald-600">11:10 AM <span class="text-stone-400 ml-1">(3m ago)</span></span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Next pinch</span>
+          <span class="text-sm text-stone-600">Thursday at 9:00 AM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup-section mb-16">
+    <div class="mockup-label">Dashboard — Token expired (pings stopped)</div>
+
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+      <!-- Expired banner -->
+      <div class="bg-red-50 border-b border-red-200 px-5 py-3 flex items-start gap-3">
+        <svg class="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-red-900">Your Claude token has expired</p>
+          <p class="text-xs text-red-700 mt-0.5">
+            Pings have been paused automatically. Run <code class="bg-red-100 px-1 py-0.5 rounded text-[11px]">npx pinchpoint connect</code> to link a fresh token and resume scheduling.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-6 text-center border-b border-stone-100">
+        <p class="text-sm text-stone-400 mb-1">Window ended</p>
+        <p class="text-2xl font-bold text-stone-400">Yesterday at 4:15 PM</p>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-stone-500">Schedule</span>
+          <span class="text-xs text-amber-600 font-medium">Auto-paused</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ──────────────────────────────────────────────── -->
+  <!-- SECTION 2: Email Notifications                    -->
+  <!-- ──────────────────────────────────────────────── -->
+
+  <hr class="max-w-xl mx-auto border-stone-200 my-12" />
+
+  <div class="text-center mb-12">
+    <h2 class="text-xl font-bold text-stone-900">Email Notifications</h2>
+    <p class="text-stone-400 text-sm mt-1">Sent at 30, 7, and 1 day(s) before expiry</p>
+  </div>
+
+  <!-- 30-day email -->
+  <div class="mockup-section mb-12">
+    <div class="mockup-label">Email — 30 days notice</div>
+    <div class="email-preview">
+      <div class="email-header">
+        <div><strong>From:</strong> PinchPoint &lt;notify@pinchpoint.dev&gt;</div>
+        <div><strong>Subject:</strong> Your Claude token expires in 30 days</div>
+      </div>
+      <div class="email-body">
+        <h2 style="margin: 0 0 8px; font-size: 18px; color: #1c1917;">Heads up — your token expires soon</h2>
+        <p style="color: #78716c; margin: 0 0 20px; font-size: 14px; line-height: 1.6;">
+          The Claude token connected to your PinchPoint account will expire in <strong style="color: #1c1917;">30 days</strong>. When it expires, your scheduled pings will stop working.
+        </p>
+
+        <div style="background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #44403c;">To renew your token:</p>
+          <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #57534e; line-height: 1.8;">
+            <li>Open your terminal</li>
+            <li>Run <code style="background: #f5f5f4; padding: 2px 6px; border-radius: 4px; font-size: 12px;">npx pinchpoint connect</code></li>
+            <li>Authorize with Claude when prompted</li>
+          </ol>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #a8a29e;">Your schedule and settings will stay exactly as they are.</p>
+        </div>
+
+        <p style="color: #a8a29e; font-size: 12px; margin: 0;">
+          We'll remind you again at 7 days and 1 day if you haven't reconnected.
+        </p>
+
+        <p style="color: #a8a29e; font-size: 12px; margin-top: 24px;">— PinchPoint</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7-day email -->
+  <div class="mockup-section mb-12">
+    <div class="mockup-label">Email — 7 days notice</div>
+    <div class="email-preview">
+      <div class="email-header">
+        <div><strong>From:</strong> PinchPoint &lt;notify@pinchpoint.dev&gt;</div>
+        <div><strong>Subject:</strong> Your Claude token expires in 7 days</div>
+      </div>
+      <div class="email-body">
+        <h2 style="margin: 0 0 8px; font-size: 18px; color: #1c1917;">Your token expires next week</h2>
+        <p style="color: #78716c; margin: 0 0 20px; font-size: 14px; line-height: 1.6;">
+          The Claude token connected to your PinchPoint account will expire in <strong style="color: #1c1917;">7 days</strong>. After that, your scheduled pings will stop and your window won't start automatically.
+        </p>
+
+        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #92400e;">Reconnect now to avoid interruption:</p>
+          <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #78350f; line-height: 1.8;">
+            <li>Open your terminal</li>
+            <li>Run <code style="background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-size: 12px;">npx pinchpoint connect</code></li>
+            <li>Authorize with Claude when prompted</li>
+          </ol>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #b45309;">The new token replaces the old one. Your schedule stays the same.</p>
+        </div>
+
+        <p style="color: #a8a29e; font-size: 12px; margin: 0;">
+          We'll send one final reminder tomorrow if you haven't reconnected.
+        </p>
+
+        <p style="color: #a8a29e; font-size: 12px; margin-top: 24px;">— PinchPoint</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-day email -->
+  <div class="mockup-section mb-12">
+    <div class="mockup-label">Email — 1 day notice (urgent)</div>
+    <div class="email-preview">
+      <div class="email-header">
+        <div><strong>From:</strong> PinchPoint &lt;notify@pinchpoint.dev&gt;</div>
+        <div><strong>Subject:</strong> URGENT: Your Claude token expires tomorrow</div>
+      </div>
+      <div class="email-body">
+        <h2 style="margin: 0 0 8px; font-size: 18px; color: #1c1917;">Last chance — your token expires tomorrow</h2>
+        <p style="color: #78716c; margin: 0 0 20px; font-size: 14px; line-height: 1.6;">
+          Your Claude token expires <strong style="color: #dc2626;">tomorrow</strong>. Once it expires, PinchPoint will pause your schedule automatically and your Claude window will no longer start on time.
+        </p>
+
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #991b1b;">Reconnect now:</p>
+          <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #7f1d1d; line-height: 1.8;">
+            <li>Open your terminal</li>
+            <li>Run <code style="background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 12px;">npx pinchpoint connect</code></li>
+            <li>Authorize with Claude when prompted</li>
+          </ol>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #b91c1c;">Takes 30 seconds. Your schedule and settings won't change.</p>
+        </div>
+
+        <p style="color: #a8a29e; font-size: 12px; margin: 0;">
+          This is the last reminder we'll send. If the token expires, reconnect any time to resume.
+        </p>
+
+        <p style="color: #a8a29e; font-size: 12px; margin-top: 24px;">— PinchPoint</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────── -->
+  <!-- SECTION 3: Implementation Notes                   -->
+  <!-- ──────────────────────────────────────────────── -->
+
+  <hr class="max-w-xl mx-auto border-stone-200 my-12" />
+
+  <div class="mockup-section mb-16">
+    <div class="mockup-label">Implementation notes</div>
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 text-sm text-stone-600 space-y-4">
+      <div>
+        <h3 class="font-semibold text-stone-900 mb-1">Backend (DO changes)</h3>
+        <ul class="list-disc pl-5 space-y-1 text-stone-500">
+          <li>Store <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenConnectedAt</code> (ISO timestamp) in <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">setToken()</code></li>
+          <li>Compute <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenExpiresAt = tokenConnectedAt + 365 days</code></li>
+          <li>On each alarm fire, check days remaining. If 30/7/1 and not already notified at that tier, send email + set <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">lastExpiryNotification</code></li>
+          <li>Include <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenExpiresAt</code> and <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining</code> in <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">getStatus()</code> response</li>
+          <li>When <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining &lt;= 0</code>, auto-pause and set health to red</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="font-semibold text-stone-900 mb-1">Frontend (StatusPanel changes)</h3>
+        <ul class="list-disc pl-5 space-y-1 text-stone-500">
+          <li>If <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining &lt;= 30</code>: show subtle stone-colored info banner above countdown</li>
+          <li>If <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining &lt;= 7</code>: escalate to amber warning banner</li>
+          <li>If <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining &lt;= 1</code>: escalate to red urgent banner</li>
+          <li>If <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">tokenDaysRemaining &lt;= 0</code>: red expired banner with reconnect CTA</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="font-semibold text-stone-900 mb-1">Email (email.js additions)</h3>
+        <ul class="list-disc pl-5 space-y-1 text-stone-500">
+          <li>Add <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">sendTokenExpiryWarning(env, email, daysRemaining)</code></li>
+          <li>Three email variants: 30-day (informational), 7-day (warning), 1-day (urgent)</li>
+          <li>Fire-and-forget, same pattern as existing disconnect notification</li>
+          <li>Track <code class="bg-stone-100 px-1 py-0.5 rounded text-xs">lastExpiryNotification</code> in DO storage to prevent duplicate sends</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="font-semibold text-stone-900 mb-1">Thresholds</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-stone-400 border-b border-stone-100">
+                <th class="py-2 pr-4">Days remaining</th>
+                <th class="py-2 pr-4">Dashboard</th>
+                <th class="py-2 pr-4">Email</th>
+                <th class="py-2">Severity</th>
+              </tr>
+            </thead>
+            <tbody class="text-stone-600">
+              <tr class="border-b border-stone-50">
+                <td class="py-2 pr-4">31+</td>
+                <td class="py-2 pr-4">Nothing shown</td>
+                <td class="py-2 pr-4">None</td>
+                <td class="py-2">—</td>
+              </tr>
+              <tr class="border-b border-stone-50">
+                <td class="py-2 pr-4">30</td>
+                <td class="py-2 pr-4">Subtle info banner (stone)</td>
+                <td class="py-2 pr-4">Informational email</td>
+                <td class="py-2"><span class="text-stone-400">Low</span></td>
+              </tr>
+              <tr class="border-b border-stone-50">
+                <td class="py-2 pr-4">7</td>
+                <td class="py-2 pr-4">Amber warning banner</td>
+                <td class="py-2 pr-4">Warning email</td>
+                <td class="py-2"><span class="text-amber-600">Medium</span></td>
+              </tr>
+              <tr class="border-b border-stone-50">
+                <td class="py-2 pr-4">1</td>
+                <td class="py-2 pr-4">Red urgent banner</td>
+                <td class="py-2 pr-4">Urgent email</td>
+                <td class="py-2"><span class="text-red-600">High</span></td>
+              </tr>
+              <tr>
+                <td class="py-2 pr-4">0 (expired)</td>
+                <td class="py-2 pr-4">Red banner + auto-pause + reconnect CTA</td>
+                <td class="py-2 pr-4">None (already sent at 1 day)</td>
+                <td class="py-2"><span class="text-red-700 font-medium">Critical</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,7 +1,8 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' blob: https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev https://static.cloudflareinsights.com; worker-src 'self' blob:; connect-src 'self' https://api.pinchpoint.dev https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; frame-src https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev; font-src 'self' data: https://fonts.gstatic.com
+  Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; script-src 'self' blob: https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev https://static.cloudflareinsights.com; worker-src 'self' blob:; connect-src 'self' https://api.pinchpoint.dev https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; frame-src https://*.clerk.com https://*.clerk.accounts.dev https://clerk.pinchpoint.dev; font-src 'self' data: https://fonts.gstatic.com
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin-allow-popups

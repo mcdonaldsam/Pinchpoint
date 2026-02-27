@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-weight: 800;
+        src: url('data:font/woff2;base64,d09GMgABAAAAAAQMABAAAAAAB6wAAAOvAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhQbgRIcbgZgP1NUQVRaADwRCAqCTII+CwoAATYCJAMQBCAFhHwHIAwHG3wGyAQeKK/6V5Xq3mzGykKuhdEjpDNw1jhBN0D5oI//DOf4/WYmkQIcUjK1wP3vj4cmE22QKoSiOvG2tbTSFmLZoLtATRnHVTUCiEWyCt5If99iLCtQU6bNWUL3zY1OOdlFTqSM7PKNbiXZKGz+19BQ2imQZRGnknS/EA/IblFLKTpiskgjMGMiSW3q60x2eWQKVNDsZFTd0UgSPwFlPItuk9WVtRWkuj6N74JtlpNkE87hsDQ80QmjLAz1vAqVGTYhCA1R7wEnQz35Hh/Lcx5CRncX1I/IIJkLAdanFy2euxgfm+oO/v/JYH4nT4A4Bw6pdaGPWSNNYgdwmDQnqX5zX2RVdbRJjKT/uL6o2BUCUeJuLBcaSWfSCWMgkWLiJpqYuBhu2EtzilGLZbea7xSBuLFST9oTRi0rbFMdTJUJI8EvwVECbsMjQUBCSpRPzWuhqKLHCVig2TqknytLqdiwpcKxGYmN8c0JDcQJa7mIJWaVjDOWWCJst4gRMVhiGcLBshzC7RgSU2aBnP6vr2yOI+bOF1/E7P/sM7xPP7X2ff75YEut3//FF2Lr559b+z79FO+zzyZsPX8T88ebBXvQWn/xedtErb/8oh3NhBe+5wcv0Pie1trz/QntWv+ozwft2j/vaa29DbbeoNsn/Ki1d/5Fu9b6yIYjWuvqDTgXCLPSj520YG3L2JV1bze1/P/q8/r/3/FalraMXLhyobn87QuT18wasGfV6gG7Vs+aMnntjEG71q4etHvdLOAgnlBMmtj25Nn6hLG/mYapxn6u230k7Dzz177/ZqZeNn89JP6ym7ksXWnuX/t+25x6ucGw9ZYKaTEjlE1UdgfhD9K4g1iq6XCALMPm3fFcvwB21VH0HRHjUxDkCxsk8SIZDIby/bhCQ4jhXIQw+exTxzOcJTVCEMsMGoaTzHAYSSb5MAqTdNDEYkkThYdgEVVUsJFKZuIKT5VTwmYGMZRqXOYLWELgYZvFlNBEhKk0CJIjuCZRpbu2sJxOlVBEsYhuq0s1UUYzQHipimoiVFJIFZW43WPpdJQI/anCoYiZ4FkRHPp1TZZpniglzb9qM5T+DGQggxhDESW49GO4nRrKCDYz0iZ6hGAzi1jMXBYzZhDFovlF1FLORhwyQzaZvKxAI86yPTaDh/rtcGyWUEwEu/mpBThUUUqEzYSeidRuFi5/ehSbnhvHLqyzmFo20Z/NR0UGEKYqiDKA5jsmvT4fkzzr/zf4GKv8oQh23lQHAQAAAA==') format('woff2');
+      }
+    </style>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#059669"/>
+  <text x="32" y="45" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="800" fill="white">pp</text>
+</svg>

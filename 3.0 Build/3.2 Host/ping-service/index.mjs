@@ -3,15 +3,32 @@
 
 import http from 'http'
 import crypto from 'crypto'
-import { execFileSync } from 'child_process'
-import { query } from '@anthropic-ai/claude-agent-sdk'
+import { execFile, fork } from 'child_process'
+import { promisify } from 'util'
+import { fileURLToPath } from 'url'
+import path from 'path'
+
+const execFileAsync = promisify(execFile)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const WORKER_PATH = path.join(__dirname, 'ping-worker.mjs')
 
 const PING_SECRET = process.env.PING_SECRET
 const PING_ENCRYPTION_KEY = process.env.PING_ENCRYPTION_KEY
 const PORT = process.env.PORT || 8080
 
+// Minimal env for child processes — excludes PING_SECRET and PING_ENCRYPTION_KEY
+const CHILD_ENV = { PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: 'production' }
+
 if (!PING_SECRET || !PING_ENCRYPTION_KEY) {
   console.error('PING_SECRET and PING_ENCRYPTION_KEY env vars are required')
+  process.exit(1)
+}
+if (PING_SECRET.length < 32) {
+  console.error('PING_SECRET must be at least 32 characters')
+  process.exit(1)
+}
+if (PING_ENCRYPTION_KEY.length < 64) {
+  console.error('PING_ENCRYPTION_KEY must be a 32-byte hex string (64 characters)')
   process.exit(1)
 }
 
@@ -59,60 +76,76 @@ function readBody(req, maxBytes = 64 * 1024) {
   })
 }
 
-// Serialize ping execution — env var is process-global, so concurrent
-// requests would overwrite each other's tokens (race condition).
-let pingRunning = false
-const pingWaiters = []
-const MAX_QUEUE = 5
+// ─── Concurrency pool — each ping runs in an isolated child process ──
+// Token is passed via env to the forked child only (never in parent's env).
+// Concurrency is limited by available RAM (~150MB per child + SDK + CLI).
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_PINGS || '6', 10)
+const MAX_QUEUE = parseInt(process.env.MAX_PING_QUEUE || '20', 10)
+let activeCount = 0
+const waitQueue = []
 
-async function queuePing(token) {
-  if (pingWaiters.length >= MAX_QUEUE) {
+async function withConcurrencyLimit(fn) {
+  if (activeCount >= MAX_CONCURRENT && waitQueue.length >= MAX_QUEUE) {
     throw new Error('Service busy')
   }
-  if (pingRunning) {
-    await new Promise(resolve => pingWaiters.push(resolve))
+  if (activeCount >= MAX_CONCURRENT) {
+    await new Promise(resolve => waitQueue.push(resolve))
   }
-  pingRunning = true
+  activeCount++
   try {
-    return await executePing(token)
+    return await fn()
   } finally {
-    pingRunning = false
-    if (pingWaiters.length > 0) pingWaiters.shift()()
+    activeCount--
+    if (waitQueue.length > 0) waitQueue.shift()()
   }
 }
 
 async function executePing(token) {
-  process.env.CLAUDE_CODE_OAUTH_TOKEN = token
-  delete process.env.CLAUDECODE
+  return new Promise((resolve) => {
+    const child = fork(WORKER_PATH, [], {
+      env: { ...CHILD_ENV, CLAUDE_CODE_OAUTH_TOKEN: token },
+      silent: true,
+    })
+    token = null
 
-  try {
-    const conversation = query({
-      prompt: 'Reply with just the word "pong" and nothing else.',
-      options: {
-        maxTurns: 1,
-        allowedTools: [],
-      },
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        child.kill('SIGTERM')
+        resolve({ success: false, error: 'Ping timed out' })
+      }
+    }, 25000)
+
+    child.on('message', (result) => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        resolve(result)
+      }
     })
 
-    // Capture five_hour rate_limit_event — provides exact resetsAt for the session window.
-    // Note: Anthropic API rejects OAuth tokens ("OAuth authentication is currently not supported")
-    // so we cannot fetch rate limit headers directly. usedPercentage is unavailable.
-    let fiveHourInfo = null
-    for await (const msg of conversation) {
-      if (msg.type === 'rate_limit_event' && msg.rate_limit_info?.rateLimitType === 'five_hour') {
-        fiveHourInfo = msg.rate_limit_info
+    child.on('error', (err) => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        resolve({ success: false, error: sanitizeError(err.message) })
       }
-    }
+    })
 
-    return { success: true, rateLimitInfo: fiveHourInfo, rateLimits: fiveHourInfo ? { five_hour: fiveHourInfo } : {} }
-  } catch (e) {
-    const errMsg = sanitizeError(e.message || String(e))
-    console.error('Ping failed:', errMsg)
-    return { success: false, error: errMsg }
-  } finally {
-    delete process.env.CLAUDE_CODE_OAUTH_TOKEN
-    token = null
-  }
+    child.on('exit', (code) => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        if (code !== 0) resolve({ success: false, error: `Worker exited with code ${code}` })
+        else resolve({ success: false, error: 'Worker exited without result' })
+      }
+    })
+
+    child.stderr?.on('data', (chunk) => {
+      console.error('[ping-worker]', sanitizeError(chunk.toString().trim()))
+    })
+  })
 }
 
 function send(res, status, data) {
@@ -208,15 +241,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: 'Transit decryption failed' })
     }
 
-    // Log token format diagnostics (prefix only — never the full token)
-    const tokenPrefix = token.substring(0, 12)
-    const tokenLen = token.length
-    console.log(`Token decrypted: prefix=${tokenPrefix}..., length=${tokenLen}`)
+    console.log('Token decrypted: ok')
 
-    // Queue ping execution to prevent concurrent env var overwrites
+    // Execute ping in isolated child process (concurrency-limited)
     let result
     try {
-      result = await queuePing(token)
+      result = await withConcurrencyLimit(() => executePing(token))
     } catch (e) {
       if (e.message === 'Service busy') return send(res, 503, { error: 'Service busy' })
       return send(res, 500, { error: 'Ping execution failed' })
@@ -225,7 +255,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, result)
   }
 
-  // Debug endpoint — runs claude CLI directly with execFileSync to capture stderr
+  // Debug endpoint — runs claude CLI directly to capture stderr (async, queued)
   if (req.method === 'POST' && req.url === '/test') {
     let body
     try {
@@ -241,6 +271,12 @@ const server = http.createServer(async (req, res) => {
     if (typeof timestamp !== 'number' || Math.abs(Date.now() - timestamp) > 60_000) {
       return send(res, 401, { error: 'Request expired or invalid timestamp' })
     }
+
+    // Reject replayed nonces
+    if (seenNonces.has(nonce)) {
+      return send(res, 401, { error: 'Duplicate request' })
+    }
+
     if (typeof signature !== 'string' || !/^[0-9a-f]{64}$/i.test(signature)) {
       return send(res, 401, { error: 'Invalid signature format' })
     }
@@ -252,6 +288,9 @@ const server = http.createServer(async (req, res) => {
       return send(res, 401, { error: 'Invalid signature' })
     }
 
+    // Record nonce after successful verification
+    seenNonces.set(nonce, Date.now())
+
     let token
     try {
       token = decryptTransitToken(encryptedToken)
@@ -259,27 +298,37 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: 'Transit decryption failed' })
     }
 
-    // Run claude CLI directly (no shell) to capture stderr
+    // Run claude CLI via async execFile (concurrency-limited)
+    let result
     try {
-      const result = execFileSync('npx', ['@anthropic-ai/claude-code', '-p', 'reply pong', '--output-format', 'json'], {
-        env: { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: token },
-        timeout: 25000,
-        encoding: 'utf8',
-        maxBuffer: 1024 * 1024,
+      result = await withConcurrencyLimit(async () => {
+        try {
+          const { stdout } = await execFileAsync('npx', ['@anthropic-ai/claude-code', '-p', 'reply pong', '--output-format', 'json'], {
+            env: { ...CHILD_ENV, CLAUDE_CODE_OAUTH_TOKEN: token },
+            timeout: 25000,
+            encoding: 'utf8',
+            maxBuffer: 1024 * 1024,
+          })
+          token = null
+          return { success: true, output: stdout.substring(0, 500) }
+        } catch (e) {
+          token = null
+          const stderr = sanitizeError(e.stderr || '')
+          const stdout = sanitizeError(e.stdout || '')
+          return {
+            success: false,
+            exitCode: e.code,
+            stderr: stderr.substring(0, 500),
+            stdout: stdout.substring(0, 500),
+          }
+        }
       })
-      token = null
-      return send(res, 200, { success: true, output: result.substring(0, 500) })
     } catch (e) {
-      token = null
-      const stderr = sanitizeError(e.stderr || '')
-      const stdout = sanitizeError(e.stdout || '')
-      return send(res, 200, {
-        success: false,
-        exitCode: e.status,
-        stderr: stderr.substring(0, 500),
-        stdout: stdout.substring(0, 500),
-      })
+      if (e.message === 'Service busy') return send(res, 503, { error: 'Service busy' })
+      return send(res, 500, { error: 'Test execution failed' })
     }
+    token = null
+    return send(res, 200, result)
   }
 
   send(res, 404, { error: 'Not found' })

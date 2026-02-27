@@ -24,6 +24,7 @@ id = "5d9bb168e2344a39bf39753f1ef8a2e7"
 # Public vars
 [vars]
 CLERK_FRONTEND_API = "clerk.pinchpoint.dev"  # Clerk domain — used for JWKS + JWT issuer check
+CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsucGluY2hwb2ludC5kZXYk"  # JWT azp claim validation
 FRONTEND_URL = "https://pinchpoint.dev"
 
 # Secrets (set via `wrangler secret put`):

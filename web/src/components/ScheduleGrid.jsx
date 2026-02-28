@@ -494,6 +494,11 @@ function buildGrid(schedule) {
           if (grid[nextDi][nextHour].type === 'idle' || grid[nextDi][nextHour].type === 'off') {
             grid[nextDi][nextHour] = { type: 'window', rollIdx: -1, sourceDi: di }
           }
+          // Also paint hour 0 on current day for visual continuity
+          // (midnight is at the bottom of the grid, so it should flow down from hour 23)
+          if (nextHour === 0 && (grid[renderDi][0].type === 'idle' || grid[renderDi][0].type === 'off')) {
+            grid[renderDi][0] = { type: 'window', rollIdx: ri, sourceDi: di }
+          }
         }
       }
     }
@@ -691,11 +696,9 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
       return
     }
 
-    // Idle or off: activate day (use display column day, not source)
+    // Idle or off: do nothing on single tap (double-tap adds a roll on active days)
     if (cell.type === 'idle' || cell.type === 'off') {
       setPopover(null)
-      const day = DAYS[dayIndex]
-      onUpdateDay(day, buildDefaultRolls(`${String(hour).padStart(2, '0')}:00`))
       return
     }
 

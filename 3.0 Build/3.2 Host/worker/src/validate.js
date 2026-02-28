@@ -7,14 +7,13 @@ const VALID_DAYS = [
 const TIME_REGEX = /^([01]\d|2[0-3]):00$/
 
 /**
- * Build default rolls from a start time (each +5h apart).
+ * Build 4 default rolls from a start time (each +5h apart).
  * @param {string} startTime - "HH:MM" in 24h format
- * @param {number} [maxRolls=5] - number of rolls to generate (1-5)
  * @returns {Array<{time: string, enabled: boolean}>}
  */
-export function buildDefaultRolls(startTime, maxRolls = 5) {
+export function buildDefaultRolls(startTime) {
   const [h, m] = startTime.split(':').map(Number)
-  return Array.from({ length: maxRolls }, (_, i) => {
+  return Array.from({ length: 4 }, (_, i) => {
     const totalMin = (h * 60 + m + i * 300) % 1440
     const rh = String(Math.floor(totalMin / 60)).padStart(2, '0')
     const rm = String(totalMin % 60).padStart(2, '0')
@@ -84,11 +83,22 @@ export function validateSchedule(schedule) {
       if (!value[0].enabled) {
         return `${day}: roll 1 must be enabled`
       }
-      // Rolls must be exactly 5h apart (matching buildDefaultRolls cascade)
-      const expected = buildDefaultRolls(value[0].time)
-      for (let i = 1; i < value.length; i++) {
-        if (value[i].time !== expected[i].time) {
-          return `${day} roll ${i + 1}: must be ${expected[i].time} (5h from roll 1), got ${value[i].time}`
+      // Enabled rolls must be at least 5h (300min) apart
+      const enabled = value
+        .map((r, i) => ({ ...r, idx: i }))
+        .filter(r => r.enabled)
+        .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))
+      for (let i = 1; i < enabled.length; i++) {
+        const gap = timeToMinutes(enabled[i].time) - timeToMinutes(enabled[i - 1].time)
+        if (gap > 0 && gap < 300) {
+          return `${day}: roll ${enabled[i].idx + 1} (${enabled[i].time}) is only ${Math.floor(gap / 60)}h after roll ${enabled[i - 1].idx + 1} (${enabled[i - 1].time}). Must be at least 5h apart`
+        }
+      }
+      // Check wrap-around gap (last enabled → first enabled across midnight)
+      if (enabled.length > 1) {
+        const wrapGap = (timeToMinutes(enabled[0].time) + 1440) - timeToMinutes(enabled[enabled.length - 1].time)
+        if (wrapGap > 0 && wrapGap < 300) {
+          return `${day}: roll ${enabled[0].idx + 1} (${enabled[0].time}) is only ${Math.floor(wrapGap / 60)}h after roll ${enabled[enabled.length - 1].idx + 1} (${enabled[enabled.length - 1].time}) across midnight. Must be at least 5h apart`
         }
       }
       continue

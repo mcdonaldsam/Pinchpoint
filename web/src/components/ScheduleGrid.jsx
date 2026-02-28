@@ -88,6 +88,36 @@ function checkCrossDayOverlap(schedule) {
   return null
 }
 
+/**
+ * Check if any two enabled rolls on the same day are < 5h apart.
+ * Returns { day, rollA, rollB, gap } or null.
+ */
+function checkRollGapViolation(schedule) {
+  for (const day of DAYS) {
+    const rolls = schedule[day]
+    if (!rolls || !Array.isArray(rolls)) continue
+    const enabled = rolls
+      .map((r, i) => ({ ...r, idx: i }))
+      .filter(r => r.enabled)
+      .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))
+    for (let i = 1; i < enabled.length; i++) {
+      const gap = timeToMinutes(enabled[i].time) - timeToMinutes(enabled[i - 1].time)
+      // Handle wrap-around: if gap is negative, it's a midnight wrap (already handled by cross-day check)
+      if (gap > 0 && gap < 300) {
+        return { day, rollA: enabled[i - 1].idx + 1, rollB: enabled[i].idx + 1, gapHours: Math.floor(gap / 60) }
+      }
+    }
+    // Also check wrap-around gap (last → first)
+    if (enabled.length > 1) {
+      const wrapGap = (timeToMinutes(enabled[0].time) + 1440) - timeToMinutes(enabled[enabled.length - 1].time)
+      if (wrapGap > 0 && wrapGap < 300) {
+        return { day, rollA: enabled[enabled.length - 1].idx + 1, rollB: enabled[0].idx + 1, gapHours: Math.floor(wrapGap / 60) }
+      }
+    }
+  }
+  return null
+}
+
 // ─── Timezone helpers ─────────────────────────────────────────
 
 const TIMEZONE_LIST = [
@@ -399,9 +429,11 @@ function InfoTooltip() {
       {open && (
         <div className="absolute left-0 top-full mt-1.5 bg-stone-900 text-white rounded-lg px-3 py-2.5 z-50 w-56 shadow-lg">
           {[
-            'Drag a pinch to move it',
+            'Drag first pinch to shift the day',
+            'Drag other pinches independently',
             'Tap once to edit time',
             'Tap twice to skip/restore',
+            'Tap twice on empty to add a pinch',
             'Tap the day to toggle/reset it',
           ].map(hint => (
             <div key={hint} className="flex items-start gap-2 py-0.5">
@@ -555,9 +587,16 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
         const rolls = scheduleRef.current[day]
         if (rolls) {
           const newTime = `${String(currentDragHour).padStart(2, '0')}:00`
-          const delta = timeToMinutes(newTime) - timeToMinutes(rolls[drag.rollIdx].time)
-          const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
-          onUpdateDay(day, updated)
+          if (drag.rollIdx === 0) {
+            // Roll 1 (anchor): shift ALL rolls by the same delta
+            const delta = timeToMinutes(newTime) - timeToMinutes(rolls[0].time)
+            const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
+            onUpdateDay(day, updated)
+          } else {
+            // Roll 2+: move only this roll independently
+            const updated = rolls.map((r, i) => i === drag.rollIdx ? { ...r, time: newTime } : r)
+            onUpdateDay(day, updated)
+          }
         }
       }
       justDragged.current = true
@@ -619,7 +658,21 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
     const last = lastTapRef.current
     if (last.dayIndex === cell.sourceDi && last.rollIdx === cell.rollIdx && now - last.time < 400) {
       lastTapRef.current = { dayIndex: -1, rollIdx: -1, time: 0 }
+
+      // Double-tap on idle/window slot of an active day → add a new roll at this hour
+      if ((cell.type === 'idle' || cell.type === 'window') && schedule[sourceDay]) {
+        const rolls = schedule[sourceDay]
+        if (rolls.length >= 5) return // max 5 rolls
+        const newRollTime = `${String(hour).padStart(2, '0')}:00`
+        const updated = [...rolls, { time: newRollTime, enabled: true }]
+        onUpdateDay(sourceDay, updated)
+        setPopover(null)
+        return
+      }
+
+      // Double-tap on ping: toggle enabled/disabled (Roll 1 can't be disabled)
       if (cell.type === 'ping' || cell.type === 'disabled-ping') {
+        if (cell.rollIdx === 0) return // Roll 1 must stay enabled
         const rolls = schedule[sourceDay]
         if (!rolls) return
         const updated = [...rolls]
@@ -664,9 +717,16 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
     const day = DAYS[popover.dayIndex]
     const rolls = schedule[day]
     if (!rolls) return
-    const delta = timeToMinutes(newTime) - timeToMinutes(rolls[rollIdx].time)
-    const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
-    onUpdateDay(day, updated)
+    if (rollIdx === 0) {
+      // Roll 1 (anchor): shift ALL rolls by the same delta
+      const delta = timeToMinutes(newTime) - timeToMinutes(rolls[0].time)
+      const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
+      onUpdateDay(day, updated)
+    } else {
+      // Roll 2+: change only this roll independently
+      const updated = rolls.map((r, i) => i === rollIdx ? { ...r, time: newTime } : r)
+      onUpdateDay(day, updated)
+    }
     setPopover(null)
   }
 
@@ -704,11 +764,14 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
           {grid.map((dayGrid, di) => {
             const cell = dayGrid[hour]
             const isPing = cell.type === 'ping'
+            const isRoll1 = isPing && cell.rollIdx === 0
             const pingLabel = isPing && schedule[DAYS[cell.sourceDi]]?.[cell.rollIdx]
               ? formatTime12(schedule[DAYS[cell.sourceDi]][cell.rollIdx].time).replace(/ [AP]M$/, '')
               : null
             const isDragging = drag && drag.dayIndex === cell.sourceDi && drag.rollIdx === cell.rollIdx && isPing
             const isDragTarget = drag && drag.dayIndex === di && dragHour === hour && !isPing
+            // Roll 1: darker malachite with grab cursor; Roll 2+: lighter with pointer
+            const pingColor = isPing ? (isRoll1 ? '#1aab6b' : '#3dbb82') : CELL_COLORS[cell.type]
             return (
               <div
                 key={di}
@@ -718,8 +781,8 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
                 style={{
                   height: '22px',
                   borderRadius: '2px',
-                  backgroundColor: isDragTarget ? '#1aab6b80' : CELL_COLORS[cell.type],
-                  cursor: isPing ? (drag ? 'grabbing' : 'grab') : 'pointer',
+                  backgroundColor: isDragTarget ? '#1aab6b80' : pingColor,
+                  cursor: isPing ? (drag ? 'grabbing' : (isRoll1 ? 'grab' : 'pointer')) : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -793,6 +856,7 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
   useEffect(() => {
     if (!dirty) return
     if (checkCrossDayOverlap(schedule)) return
+    if (checkRollGapViolation(schedule)) return
     latestRef.current = { schedule, timezone }
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
@@ -823,6 +887,7 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
     return sum + schedule[d].filter(r => r.enabled).length
   }, 0)
   const overlap = useMemo(() => checkCrossDayOverlap(schedule), [schedule])
+  const gapViolation = useMemo(() => checkRollGapViolation(schedule), [schedule])
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -856,6 +921,15 @@ export default function ScheduleGrid({ schedule: initialSchedule, timezone: init
         <div className="mx-5 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
           <p className="text-[11px] text-amber-700">
             <span className="font-semibold capitalize">{overlap.dayB}</span>'s first pinch overlaps <span className="capitalize">{overlap.dayA}</span>'s last 5h window (ends {formatTime12(overlap.endTime)}). Move <span className="capitalize">{overlap.dayB}</span> to {formatTime12(overlap.endTime)} or later.
+          </p>
+        </div>
+      )}
+
+      {/* Same-day roll gap warning */}
+      {gapViolation && (
+        <div className="mx-5 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-[11px] text-amber-700">
+            <span className="font-semibold capitalize">{gapViolation.day}</span>: pinch {gapViolation.rollA} and pinch {gapViolation.rollB} are only {gapViolation.gapHours}h apart. Each window is 5h — move them at least 5h apart.
           </p>
         </div>
       )}

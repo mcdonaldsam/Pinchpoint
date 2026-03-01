@@ -83,22 +83,12 @@ export function validateSchedule(schedule) {
       if (!value[0].enabled) {
         return `${day}: roll 1 must be enabled`
       }
-      // Enabled rolls must be at least 5h (300min) apart
-      const enabled = value
-        .map((r, i) => ({ ...r, idx: i }))
-        .filter(r => r.enabled)
-        .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))
-      for (let i = 1; i < enabled.length; i++) {
-        const gap = timeToMinutes(enabled[i].time) - timeToMinutes(enabled[i - 1].time)
+      // Enabled rolls must be at least 5h (300min) apart (chronological order)
+      const resolved = resolveRolls(value).filter(r => r.enabled)
+      for (let i = 1; i < resolved.length; i++) {
+        const gap = resolved[i].chronoMinutes - resolved[i - 1].chronoMinutes
         if (gap > 0 && gap < 300) {
-          return `${day}: roll ${enabled[i].idx + 1} (${enabled[i].time}) is only ${Math.floor(gap / 60)}h after roll ${enabled[i - 1].idx + 1} (${enabled[i - 1].time}). Must be at least 5h apart`
-        }
-      }
-      // Check wrap-around gap (last enabled → first enabled across midnight)
-      if (enabled.length > 1) {
-        const wrapGap = (timeToMinutes(enabled[0].time) + 1440) - timeToMinutes(enabled[enabled.length - 1].time)
-        if (wrapGap > 0 && wrapGap < 300) {
-          return `${day}: roll ${enabled[0].idx + 1} (${enabled[0].time}) is only ${Math.floor(wrapGap / 60)}h after roll ${enabled[enabled.length - 1].idx + 1} (${enabled[enabled.length - 1].time}) across midnight. Must be at least 5h apart`
+          return `${day}: roll ${resolved[i].idx + 1} (${resolved[i].time}) is only ${Math.floor(gap / 60)}h after roll ${resolved[i - 1].idx + 1} (${resolved[i - 1].time}). Must be at least 5h apart`
         }
       }
       continue
@@ -107,40 +97,29 @@ export function validateSchedule(schedule) {
     return `Invalid value for ${day}: must be null, a time string, or an array of rolls`
   }
 
-  // Cross-day overlap check: last enabled roll's 5h window must not overlap
-  // the next enabled day's first roll (roll 1, which is always enabled).
   const normalized = normalizeSchedule(schedule)
   const enabledDays = VALID_DAYS.filter(d => normalized[d] && Array.isArray(normalized[d]))
   for (let idx = 0; idx < enabledDays.length; idx++) {
     const dayA = enabledDays[idx]
     const dayB = enabledDays[(idx + 1) % enabledDays.length]
-    if (dayA === dayB) continue // only one enabled day
+    if (dayA === dayB) continue
 
-    const rollsA = normalized[dayA]
-    const rollsB = normalized[dayB]
-    const roll1A = timeToMinutes(rollsA[0].time)
+    const resolvedA = resolveRolls(normalized[dayA]).filter(r => r.enabled)
+    if (!resolvedA.length) continue
+    const lastRoll = resolvedA[resolvedA.length - 1]
+    const windowEnd = lastRoll.chronoMinutes + 300
 
-    // Find last enabled roll on day A
-    let lastEnabledA = rollsA[0]
-    for (const r of rollsA) { if (r.enabled) lastEnabledA = r }
-    const lastMinA = timeToMinutes(lastEnabledA.time)
-    const isWrapped = lastMinA < roll1A
-    const lastAbsolute = lastMinA + (isWrapped ? 1440 : 0)
-
-    // First enabled roll on day B is always roll 1
-    const firstMinB = timeToMinutes(rollsB[0].time)
-
-    // How many calendar days apart are A and B?
+    const firstMinB = timeToMinutes(normalized[dayB][0].time)
     const idxA = VALID_DAYS.indexOf(dayA)
     const idxB = VALID_DAYS.indexOf(dayB)
     const dayGap = (idxB - idxA + 7) % 7 || 7
     const firstAbsolute = firstMinB + dayGap * 1440
 
-    if (lastAbsolute + 300 > firstAbsolute) {
-      const endH = Math.floor(((lastAbsolute + 300) % 1440) / 60)
-      const endM = (lastAbsolute + 300) % 60
+    if (windowEnd > firstAbsolute) {
+      const endH = Math.floor((windowEnd % 1440) / 60)
+      const endM = windowEnd % 60
       const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
-      return `${dayB} roll 1 (${rollsB[0].time}) overlaps ${dayA}'s last window (ends ${endTime}). Move ${dayB} to ${endTime} or later`
+      return `${dayB} roll 1 (${normalized[dayB][0].time}) overlaps ${dayA}'s last window (ends ${endTime}). Move ${dayB} to ${endTime} or later`
     }
   }
 
@@ -150,6 +129,18 @@ export function validateSchedule(schedule) {
 function timeToMinutes(time) {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
+}
+
+function resolveRolls(rolls) {
+  if (!rolls || !rolls.length) return []
+  const roll1Min = timeToMinutes(rolls[0].time)
+  return rolls
+    .map((roll, idx) => {
+      const min = timeToMinutes(roll.time)
+      const wrapped = idx > 0 && min < roll1Min
+      return { ...roll, idx, chronoMinutes: min + (wrapped ? 1440 : 0), wrapped }
+    })
+    .sort((a, b) => a.chronoMinutes - b.chronoMinutes)
 }
 
 /**

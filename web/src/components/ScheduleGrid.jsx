@@ -4,11 +4,6 @@ import { Info } from 'lucide-react'
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_LABELS = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' }
 
-const TIME_OPTIONS = []
-for (let h = 0; h < 24; h++) {
-  TIME_OPTIONS.push(`${String(h).padStart(2, '0')}:00`)
-}
-
 const HOUR_LABELS = { 0: '12am', 3: '3am', 6: '6am', 9: '9am', 12: '12pm', 15: '3pm', 18: '6pm', 21: '9pm' }
 
 function formatTime12(time24) {
@@ -26,6 +21,25 @@ function timeToMinutes(time) {
 function minutesToTime(mins) {
   const wrapped = ((mins % 1440) + 1440) % 1440
   return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`
+}
+
+/**
+ * Resolve a day's rolls into chronological order with wrap annotation.
+ * Roll 1 (idx 0) defines the day boundary. Rolls with times earlier
+ * than Roll 1 are "wrapped" — they fire on the next calendar day.
+ * @param {Array} rolls - [{ time: "HH:00", enabled: bool }, ...]
+ * @returns {Array} [{ time, enabled, idx, chronoMinutes, wrapped }, ...] sorted chronologically
+ */
+function resolveRolls(rolls) {
+  if (!rolls || !rolls.length) return []
+  const roll1Min = timeToMinutes(rolls[0].time)
+  return rolls
+    .map((roll, idx) => {
+      const min = timeToMinutes(roll.time)
+      const wrapped = idx > 0 && min < roll1Min
+      return { ...roll, idx, chronoMinutes: min + (wrapped ? 1440 : 0), wrapped }
+    })
+    .sort((a, b) => a.chronoMinutes - b.chronoMinutes)
 }
 
 function buildDefaultRolls(startTime) {
@@ -63,26 +77,20 @@ function checkCrossDayOverlap(schedule) {
     const dayB = enabledDays[(idx + 1) % enabledDays.length]
     if (dayA === dayB) continue
 
-    const rollsA = schedule[dayA]
-    const rollsB = schedule[dayB]
-    const roll1A = timeToMinutes(rollsA[0].time)
+    const resolvedA = resolveRolls(schedule[dayA]).filter(r => r.enabled)
+    if (!resolvedA.length) continue
+    const lastRoll = resolvedA[resolvedA.length - 1]
+    const windowEnd = lastRoll.chronoMinutes + 300
 
-    let lastEnabledA = rollsA[0]
-    for (const r of rollsA) { if (r.enabled) lastEnabledA = r }
-    const lastMinA = timeToMinutes(lastEnabledA.time)
-    const isWrapped = lastMinA < roll1A
-    const lastAbsolute = lastMinA + (isWrapped ? 1440 : 0)
-
-    const firstMinB = timeToMinutes(rollsB[0].time)
+    const firstMinB = timeToMinutes(schedule[dayB][0].time)
     const idxA = DAYS.indexOf(dayA)
     const idxB = DAYS.indexOf(dayB)
     const dayGap = (idxB - idxA + 7) % 7 || 7
     const firstAbsolute = firstMinB + dayGap * 1440
 
-    if (lastAbsolute + 300 > firstAbsolute) {
-      const endMin = (lastAbsolute + 300) % 1440
-      const endTime = minutesToTime(endMin)
-      return { dayA, dayB, endTime }
+    if (windowEnd > firstAbsolute) {
+      const endMin = windowEnd % 1440
+      return { dayA, dayB, endTime: minutesToTime(endMin) }
     }
   }
   return null
@@ -96,22 +104,11 @@ function checkRollGapViolation(schedule) {
   for (const day of DAYS) {
     const rolls = schedule[day]
     if (!rolls || !Array.isArray(rolls)) continue
-    const enabled = rolls
-      .map((r, i) => ({ ...r, idx: i }))
-      .filter(r => r.enabled)
-      .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))
-    for (let i = 1; i < enabled.length; i++) {
-      const gap = timeToMinutes(enabled[i].time) - timeToMinutes(enabled[i - 1].time)
-      // Handle wrap-around: if gap is negative, it's a midnight wrap (already handled by cross-day check)
+    const resolved = resolveRolls(rolls).filter(r => r.enabled)
+    for (let i = 1; i < resolved.length; i++) {
+      const gap = resolved[i].chronoMinutes - resolved[i - 1].chronoMinutes
       if (gap > 0 && gap < 300) {
-        return { day, rollA: enabled[i - 1].idx + 1, rollB: enabled[i].idx + 1, gapHours: Math.floor(gap / 60) }
-      }
-    }
-    // Also check wrap-around gap (last → first)
-    if (enabled.length > 1) {
-      const wrapGap = (timeToMinutes(enabled[0].time) + 1440) - timeToMinutes(enabled[enabled.length - 1].time)
-      if (wrapGap > 0 && wrapGap < 300) {
-        return { day, rollA: enabled[enabled.length - 1].idx + 1, rollB: enabled[0].idx + 1, gapHours: Math.floor(wrapGap / 60) }
+        return { day, rollA: resolved[i - 1].idx + 1, rollB: resolved[i].idx + 1, gapHours: Math.floor(gap / 60) }
       }
     }
   }
@@ -328,76 +325,6 @@ function TimezonePicker({ value, onChange }) {
   )
 }
 
-// ─── RollPopover ──────────────────────────────────────────────
-
-function RollPopover({ rollIdx, rolls, position, popoverRef, onRollChange }) {
-  const roll = rolls[rollIdx]
-  const listRef = useRef(null)
-
-  // Scroll selected time into view on open
-  useEffect(() => {
-    if (!listRef.current) return
-    const el = listRef.current.querySelector('[data-selected="true"]')
-    if (el) el.scrollIntoView({ block: 'center' })
-  }, [])
-
-  function nudge(dir) {
-    if (listRef.current) listRef.current.scrollBy({ top: dir * 36, behavior: 'smooth' })
-  }
-
-  return (
-    <div
-      ref={popoverRef}
-      style={{ position: 'fixed', top: position.top, left: position.left, zIndex: 200 }}
-      className="bg-white border border-stone-200 rounded-lg shadow-lg w-36 overflow-hidden"
-    >
-      <div className="px-3 py-2 border-b border-stone-100">
-        <span className="text-xs font-medium text-stone-600">Pinch {rollIdx + 1}</span>
-      </div>
-
-      {/* Up arrow */}
-      <button
-        onMouseDown={e => e.preventDefault()}
-        onClick={() => nudge(-1)}
-        className="w-full py-1 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-50 cursor-pointer"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-        </svg>
-      </button>
-
-      {/* Scrollable time list */}
-      <div ref={listRef} style={{ maxHeight: '180px', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
-        {TIME_OPTIONS.map(t => (
-          <button
-            key={t}
-            data-selected={t === roll.time}
-            onClick={() => onRollChange(rollIdx, t)}
-            className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${
-              t === roll.time
-                ? 'bg-stone-900 text-white font-medium'
-                : 'text-stone-700 hover:bg-stone-50'
-            }`}
-          >
-            {formatTime12(t)}
-          </button>
-        ))}
-      </div>
-
-      {/* Down arrow */}
-      <button
-        onMouseDown={e => e.preventDefault()}
-        onClick={() => nudge(1)}
-        className="w-full py-1 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-50 border-t border-stone-100 cursor-pointer"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-    </div>
-  )
-}
-
 // ─── InfoTooltip ──────────────────────────────────────────────
 
 function InfoTooltip() {
@@ -431,10 +358,9 @@ function InfoTooltip() {
           {[
             'Drag first pinch to shift the day',
             'Drag other pinches independently',
-            'Tap once to edit time',
-            'Tap twice to skip/restore',
-            'Tap twice on empty to add a pinch',
-            'Tap the day to toggle/reset it',
+            'Double-tap to skip/restore a pinch',
+            'Double-tap empty to add a pinch',
+            'Tap the day to toggle on/off',
           ].map(hint => (
             <div key={hint} className="flex items-start gap-2 py-0.5">
               <span className="text-stone-500 mt-px text-xs">·</span>
@@ -453,65 +379,51 @@ function InfoTooltip() {
 // 'disabled-ping' = marker for a disabled roll (so user can click to re-enable)
 
 function buildGrid(schedule) {
-  // Initialize all day grids first — each cell tracks sourceDi for cross-day rolls
   const grid = DAYS.map((day, di) => {
     const rolls = schedule[day]
     if (!rolls) return Array.from({ length: 24 }, () => ({ type: 'off', rollIdx: -1, sourceDi: di }))
     return Array.from({ length: 24 }, () => ({ type: 'idle', rollIdx: -1, sourceDi: di }))
   })
 
-  // Process each day — enabled rolls with midnight-wrap + cross-day spillover
   DAYS.forEach((day, di) => {
     const rolls = schedule[day]
     if (!rolls) return
+    const resolved = resolveRolls(rolls)
 
-    const roll1Min = timeToMinutes(rolls[0].time)
+    for (const r of resolved) {
+      const h = timeToMinutes(r.time) / 60 | 0
+      const renderDi = r.wrapped ? (di + 1) % 7 : di
 
-    for (let ri = 0; ri < rolls.length; ri++) {
-      const roll = rolls[ri]
-      if (!roll.enabled) continue
-      const [h] = roll.time.split(':').map(Number)
-      const rollMin = h * 60
-
-      // Midnight-wrap: if this roll's time is earlier than roll 1, it fires next calendar day
-      const isWrapped = ri > 0 && rollMin < roll1Min
-      const renderDi = isWrapped ? (di + 1) % 7 : di
+      if (!r.enabled) {
+        if (grid[renderDi][h].type === 'idle') {
+          grid[renderDi][h] = { type: 'disabled-ping', rollIdx: r.idx, sourceDi: di }
+        }
+        continue
+      }
 
       for (let i = 0; i < 5; i++) {
         const absHour = h + i
         if (absHour < 24) {
           if (i === 0) {
             if (grid[renderDi][absHour].type !== 'ping') {
-              grid[renderDi][absHour] = { type: 'ping', rollIdx: ri, sourceDi: di }
+              grid[renderDi][absHour] = { type: 'ping', rollIdx: r.idx, sourceDi: di }
             }
           } else if (grid[renderDi][absHour].type === 'idle' || grid[renderDi][absHour].type === 'off') {
-            grid[renderDi][absHour] = { type: 'window', rollIdx: ri, sourceDi: di }
+            grid[renderDi][absHour] = { type: 'window', rollIdx: r.idx, sourceDi: di }
           }
         } else {
-          // Spill into next day's column (relative to render day)
+          // Spillover into next day's column
           const nextDi = (renderDi + 1) % 7
           const nextHour = absHour - 24
           if (grid[nextDi][nextHour].type === 'idle' || grid[nextDi][nextHour].type === 'off') {
-            grid[nextDi][nextHour] = { type: 'window', rollIdx: -1, sourceDi: di }
+            grid[nextDi][nextHour] = { type: 'window', rollIdx: r.idx, sourceDi: di }
           }
-          // Also paint hour 0 on current day for visual continuity
-          // (midnight is at the bottom of the grid, so it should flow down from hour 23)
+          // Visual continuity: paint hour 0 on renderDi (midnight = bottom of grid in HOUR_ORDER)
           if (nextHour === 0 && (grid[renderDi][0].type === 'idle' || grid[renderDi][0].type === 'off')) {
-            grid[renderDi][0] = { type: 'window', rollIdx: ri, sourceDi: di }
+            grid[renderDi][0] = { type: 'window', rollIdx: r.idx, sourceDi: di }
           }
         }
       }
-    }
-
-    // Disabled rolls — faint marker (also handles midnight-wrap)
-    for (let ri = 0; ri < rolls.length; ri++) {
-      const roll = rolls[ri]
-      if (roll.enabled) continue
-      const [h] = roll.time.split(':').map(Number)
-      const rollMin = h * 60
-      const isWrapped = ri > 0 && rollMin < roll1Min
-      const renderDi = isWrapped ? (di + 1) % 7 : di
-      if (grid[renderDi][h].type === 'idle') grid[renderDi][h] = { type: 'disabled-ping', rollIdx: ri, sourceDi: di }
     }
   })
 
@@ -529,11 +441,9 @@ const CELL_COLORS = {
 const HOUR_ORDER = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,0]
 
 function WeekHeatmap({ schedule, onUpdateDay }) {
-  const [popover, setPopover] = useState(null) // { dayIndex, rollIdx, top, left }
   const [drag, setDrag] = useState(null) // { dayIndex, rollIdx, startHour }
   const [dragHour, setDragHour] = useState(null)
   const gridRef = useRef(null)
-  const popoverRef = useRef(null)
   const cellRefs = useRef({}) // key: `${di}-${hour}` → element
   const justDragged = useRef(false)
   const lastTapRef = useRef({ dayIndex: -1, rollIdx: -1, time: 0 })
@@ -542,22 +452,6 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
   scheduleRef.current = schedule
 
   const grid = useMemo(() => buildGrid(schedule), [schedule])
-
-  // Close popover when clicking outside both the grid and the popover
-  useEffect(() => {
-    if (!popover) return
-    function handler(e) {
-      const inGrid = gridRef.current?.contains(e.target)
-      const inPopover = popoverRef.current?.contains(e.target)
-      if (!inGrid && !inPopover) setPopover(null)
-    }
-    document.addEventListener('mousedown', handler)
-    document.addEventListener('touchstart', handler)
-    return () => {
-      document.removeEventListener('mousedown', handler)
-      document.removeEventListener('touchstart', handler)
-    }
-  }, [popover])
 
   // Drag: track pointer movement and handle drop (Pointer Events — works on iOS + desktop)
   // Uses refs for dragHour/schedule to avoid re-registering listeners on every state change
@@ -621,7 +515,6 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
 
   function handleHeaderClick(dayIndex) {
     const day = DAYS[dayIndex]
-    setPopover(null)
     onUpdateDay(day, schedule[day] ? null : buildDefaultRolls('05:00'))
   }
 
@@ -639,7 +532,6 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
         el.removeEventListener('pointermove', onMove)
         el.removeEventListener('pointerup', onUp)
         el.releasePointerCapture(ev.pointerId)
-        setPopover(null)
         setDrag({ dayIndex, rollIdx: cell.rollIdx, startHour: hour })
         setDragHour(hour)
       }
@@ -655,82 +547,35 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
   function handleCellClick(e, dayIndex, hour) {
     if (drag || justDragged.current) return
     const cell = grid[dayIndex][hour]
-    // Use sourceDi for the actual schedule day (may differ for midnight-wrapped rolls)
     const sourceDay = DAYS[cell.sourceDi]
 
-    // Double-tap detection — must be first so it's not blocked by popover toggle
+    // Double-tap detection
     const now = Date.now()
     const last = lastTapRef.current
     if (last.dayIndex === cell.sourceDi && last.rollIdx === cell.rollIdx && now - last.time < 400) {
       lastTapRef.current = { dayIndex: -1, rollIdx: -1, time: 0 }
 
-      // Double-tap on idle/window slot of an active day → add a new roll at this hour
+      // Double-tap on idle/window slot of an active day → add a new roll
       if ((cell.type === 'idle' || cell.type === 'window') && schedule[sourceDay]) {
         const rolls = schedule[sourceDay]
-        if (rolls.length >= 5) return // max 5 rolls
+        if (rolls.length >= 5) return
         const newRollTime = `${String(hour).padStart(2, '0')}:00`
-        const updated = [...rolls, { time: newRollTime, enabled: true }]
-        onUpdateDay(sourceDay, updated)
-        setPopover(null)
+        onUpdateDay(sourceDay, [...rolls, { time: newRollTime, enabled: true }])
         return
       }
 
       // Double-tap on ping: toggle enabled/disabled (Roll 1 can't be disabled)
       if (cell.type === 'ping' || cell.type === 'disabled-ping') {
-        if (cell.rollIdx === 0) return // Roll 1 must stay enabled
+        if (cell.rollIdx === 0) return
         const rolls = schedule[sourceDay]
         if (!rolls) return
         const updated = [...rolls]
         updated[cell.rollIdx] = { ...updated[cell.rollIdx], enabled: !updated[cell.rollIdx].enabled }
         onUpdateDay(sourceDay, updated)
-        setPopover(null)
       }
       return
     }
     lastTapRef.current = { dayIndex: cell.sourceDi, rollIdx: cell.rollIdx, time: now }
-
-    // Toggle same popover closed
-    if (popover?.dayIndex === cell.sourceDi && popover?.rollIdx === cell.rollIdx &&
-        (cell.type === 'ping' || cell.type === 'window' || cell.type === 'disabled-ping')) {
-      setPopover(null)
-      return
-    }
-
-    // Idle or off: do nothing on single tap (double-tap adds a roll on active days)
-    if (cell.type === 'idle' || cell.type === 'off') {
-      setPopover(null)
-      return
-    }
-
-    // Spillover window with no associated roll — ignore
-    if (cell.rollIdx === -1) return
-
-    // Single tap: open time picker (use sourceDi for correct schedule reference)
-    const rect = e.currentTarget.getBoundingClientRect()
-    setPopover({
-      dayIndex: cell.sourceDi,
-      rollIdx: cell.rollIdx,
-      top: Math.min(rect.bottom + 6, window.innerHeight - 260),
-      left: Math.max(4, Math.min(rect.left, window.innerWidth - 144)),
-    })
-  }
-
-  function handleRollChange(rollIdx, newTime) {
-    if (!popover) return
-    const day = DAYS[popover.dayIndex]
-    const rolls = schedule[day]
-    if (!rolls) return
-    if (rollIdx === 0) {
-      // Roll 1 (anchor): shift ALL rolls by the same delta
-      const delta = timeToMinutes(newTime) - timeToMinutes(rolls[0].time)
-      const updated = rolls.map(r => ({ ...r, time: minutesToTime(timeToMinutes(r.time) + delta) }))
-      onUpdateDay(day, updated)
-    } else {
-      // Roll 2+: change only this roll independently
-      const updated = rolls.map((r, i) => i === rollIdx ? { ...r, time: newTime } : r)
-      onUpdateDay(day, updated)
-    }
-    setPopover(null)
   }
 
   return (
@@ -808,18 +653,6 @@ function WeekHeatmap({ schedule, onUpdateDay }) {
           })}
         </div>
       ))}
-
-
-      {/* Roll edit popover */}
-      {popover && schedule[DAYS[popover.dayIndex]] && (
-        <RollPopover
-          rollIdx={popover.rollIdx}
-          rolls={schedule[DAYS[popover.dayIndex]]}
-          position={{ top: popover.top, left: popover.left }}
-          popoverRef={popoverRef}
-          onRollChange={handleRollChange}
-        />
-      )}
     </div>
   )
 }

@@ -392,6 +392,23 @@ function getLocalTime(date, timezone) {
   return { weekday, time: `${hour}:${minute}` }
 }
 
+function timeToMinutes(time) {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
+function resolveRolls(rolls) {
+  if (!rolls || !rolls.length) return []
+  const roll1Min = timeToMinutes(rolls[0].time)
+  return rolls
+    .map((roll, idx) => {
+      const min = timeToMinutes(roll.time)
+      const wrapped = idx > 0 && min < roll1Min
+      return { ...roll, idx, chronoMinutes: min + (wrapped ? 1440 : 0), wrapped }
+    })
+    .sort((a, b) => a.chronoMinutes - b.chronoMinutes)
+}
+
 /**
  * Calculate the next ping time as a Date (for alarm scheduling).
  * Supports multi-roll schedules. Scans from offset -1 to +6 days
@@ -409,16 +426,13 @@ function calculateNextPingTime(schedule, timezone) {
     const dayRolls = normalized[weekday]
     if (!dayRolls) continue
 
-    for (let i = 0; i < dayRolls.length; i++) {
-      const roll = dayRolls[i]
-      if (!roll.enabled) continue
+    const resolved = resolveRolls(dayRolls)
+    for (const r of resolved) {
+      if (!r.enabled) continue
+      const [h, m] = r.time.split(':').map(Number)
 
-      const [h, m] = roll.time.split(':').map(Number)
-
-      // Midnight wrap: if this roll's time is earlier than roll 1's time,
-      // it belongs to the next calendar day
       let target
-      if (i > 0 && roll.time < dayRolls[0].time) {
+      if (r.wrapped) {
         const nextDay = new Date(checkDate.getTime() + 86400_000)
         target = buildTargetDate(nextDay, h, m, timezone)
       } else {
@@ -496,14 +510,13 @@ function calculateNextPingInfo(schedule, timezone) {
     const dayRolls = normalized[weekday]
     if (!dayRolls) continue
 
-    for (let i = 0; i < dayRolls.length; i++) {
-      const roll = dayRolls[i]
-      if (!roll.enabled) continue
-
-      const [h, m] = roll.time.split(':').map(Number)
+    const resolved = resolveRolls(dayRolls)
+    for (const r of resolved) {
+      if (!r.enabled) continue
+      const [h, m] = r.time.split(':').map(Number)
 
       let target
-      if (i > 0 && roll.time < dayRolls[0].time) {
+      if (r.wrapped) {
         const nextDay = new Date(checkDate.getTime() + 86400_000)
         target = buildTargetDate(nextDay, h, m, timezone)
       } else {
@@ -512,7 +525,7 @@ function calculateNextPingInfo(schedule, timezone) {
 
       if (target && target > now) {
         if (!best || target < best.date) {
-          best = { day: weekday, time: roll.time, rollIndex: i, date: target }
+          best = { day: weekday, time: r.time, rollIndex: r.idx, date: target }
         }
       }
     }
